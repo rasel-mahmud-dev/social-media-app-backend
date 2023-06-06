@@ -1,11 +1,13 @@
 import User from "../models/User";
 const formidable = require("formidable");
-import {createToken} from "../jwt";
+import {createToken, parseToken} from "../jwt";
 import {makeHash} from "../bcrypt/bcrypt";
 import {cp} from "fs/promises";
 import imageUpload from "../services/imageUpload";
 import loginService from "../services/loginService";
 import createUserService from "../services/createUserService";
+import getToken from "../utils/getToken";
+import { ObjectId } from 'mongodb';
 
 
 export const createNewUser = (req, res, next) => {
@@ -84,3 +86,33 @@ export const login = async (req, res, next) => {
         next(ex);
     }
 };
+
+
+    export const verifyAuth = async (req, res, next) => {
+
+        let token = getToken(req)
+    
+        try {
+            let data = await parseToken(token)
+        
+            if (!data) {
+                return res.status(409).json({message: "Please login first"})
+            }
+    
+            let user = await User.findOne({_id: new ObjectId(data._id)})
+    
+            if (!user) {
+                return res.status(409).json({message: "Please login first"})
+            }
+    
+            user["password"] = null
+    
+            res.status(201).json({
+                user,
+            })
+    
+        } catch (ex) {
+            next(ex)
+        }
+    }
+

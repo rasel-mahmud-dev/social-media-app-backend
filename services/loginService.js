@@ -21,7 +21,7 @@ function loginService(email, password) {
                 reject(error)
             }
 
-            let token = await createToken(user._id, user.email, user.roles);
+            let token = await createToken(user._id, user.email, user.role);
             let {password: s, ...other} = user;
 
     
