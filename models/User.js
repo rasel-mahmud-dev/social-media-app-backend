@@ -6,7 +6,6 @@ class User extends Base {
     // _id  => database uuid
 
     constructor({
-
         firstName,
         lastName,
         role = "USER",
@@ -24,6 +23,7 @@ class User extends Base {
         this.fullName = fullName;
         this.email = email;
         this.password = password;
+        this.friends = [];
         this.createdAt = new Date();
         this.updatedAt = new Date();
     }

@@ -14,7 +14,7 @@ function dbConnect() {
             if(!database) {
                 database = (await clientPromise).db("social-app");
             }
-            resolve(database)
+            resolve({database, client})
         } catch (ex){
             reject(ex)
         }

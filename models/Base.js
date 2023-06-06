@@ -11,15 +11,34 @@ class Base {
     }
 
     static databaseConnection;
+    static client;
 
     static Db(collection){
         return new Promise(async (resolve, reject) => {
             try {
                 // use caching database client connection
                 if (!Base.databaseConnection) {
-                    Base.databaseConnection = await dbConnect();
+                    let result = await dbConnect();
+                    Base.databaseConnection = result.database
+                    Base.client =  result.client
                 }
                 resolve(Base.databaseConnection.collection(collection));
+            } catch (ex) {
+                reject(ex);
+            }
+        });
+    }
+
+    static getClient(){
+        return new Promise(async (resolve, reject) => {
+            try {
+                // use caching database client connection
+                if (!Base.databaseConnection) {
+                    let result = await dbConnect();
+                    Base.databaseConnection = result.database
+                    Base.client =  result.client
+                }
+                resolve(Base.client);
             } catch (ex) {
                 reject(ex);
             }
