@@ -13,7 +13,7 @@ function createUserService({
             firstName,
             lastName,
             fullName: firstName + " " + lastName,
-            role: ["USER"],
+            role: "USER",
             email: email,
             password: hash,
             avatar: avatarUrl

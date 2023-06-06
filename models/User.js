@@ -9,7 +9,7 @@ class User extends Base {
 
         firstName,
         lastName,
-        role = ["USER"],
+        role = "USER",
         email,
         fullName,
         password,

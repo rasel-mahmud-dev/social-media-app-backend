@@ -4,6 +4,7 @@ import {createToken} from "../jwt";
 import {makeHash} from "../bcrypt/bcrypt";
 import {cp} from "fs/promises";
 import imageUpload from "../services/imageUpload";
+import loginService from "../services/loginService";
 import createUserService from "../services/createUserService";
 
 
@@ -26,17 +27,20 @@ export const createNewUser = (req, res, next) => {
                 return res.status(404).json({message: "Your are already registered"});
             }
 
-            let newPath = files.avatar.filepath.replace(files.avatar.newFilename, files.avatar.originalFilename)
-            await cp(files.avatar.filepath, newPath)
+           
 
-            let avatarUrl = "";
+            if(files && files.avatar){
+                let newPath = files.avatar.filepath.replace(files.avatar.newFilename, files.avatar.originalFilename)
+                await cp(files.avatar.filepath, newPath)
 
-      
-            let uploadInfo = await imageUpload(newPath, "social-app")
-            if (uploadInfo) {
-                avatarUrl = uploadInfo.secure_url
-            }
+                let avatarUrl = "";
         
+                let uploadInfo = await imageUpload(newPath, "social-app")
+                if (uploadInfo) {
+                    avatarUrl = uploadInfo.secure_url
+                }
+        
+            }
 
 
             let hash = makeHash(password);
@@ -68,3 +72,15 @@ export const createNewUser = (req, res, next) => {
     });
 };
 
+export const login = async (req, res, next) => {
+    try {
+        const {email, password} = req.body;
+
+        let {token, userData} = await loginService(email, password)
+
+        res.status(201).json({token, user: userData});
+    } catch (ex) {
+        console.log(ex)
+        next(ex);
+    }
+};
