@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+  <style>
+    body{
+      font-family: Roboto;
+      font-weight: 300;
+      font-size: 14px;
+    }
+    h1,h2,h3,h4,h5{ font-weight: 400; margin: 0; padding: 0 }
+    .post{
+      background: #f5f5f5;
+      padding: 10px;
+      margin: 4px 1px;
+    }
+    .post-meta{
+      margin-bottom: 5px;
+      display: flex;
+    }
+    .post-title{ font-weight: 500; font-size: 14px; margin-right: 5px }
+    .post-meta__date{
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="posts_wrapper"></div>
+
+<script >
+  let posts_wrapper = document.querySelector(".posts_wrapper")
+  fetch("http://localhost:1000/api/posts")
+    .then(res=> res.json())
+    .then(doc=>{
+      renderPosts(doc.posts)
+    })
+  
+  function renderPosts(posts){
+    console.log(posts)
+    let p = []
+    posts.forEach(post=>{
+      posts_wrapper.innerHTML += `
+        <div class="post">
+            <div class="post-meta">
+              <h4 class="post-title">${post.author.username}</h4>
+              <span class="post-meta__date">${new Date(post.created_at).toDateString()}</span>
+            </div>
+            <h4 class="post-title">${post.title}</h4>
+           
+        </div>
+      `
+    })
+    console.log(p)
+  }
+  
+  
+</script>
+
+</body>
+</html>
