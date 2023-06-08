@@ -2,7 +2,7 @@ import {auth} from "../middlewares"
 import {
     acceptFriendRequest,
     addFriend,
-    getFriends,
+    getFriends, getProfile,
     getUsers, rejectFriendRequest,
     removeFriend
 } from "../controllers/userController";
@@ -10,6 +10,7 @@ import {
 const router = require("express").Router();
 
 router.get("/", auth, getUsers);
+router.get("/profile/:userId", auth, getProfile);
 router.get("/friends", auth, getFriends);
 router.post("/add-friend", auth, addFriend);
 router.post("/remove-friend", auth, removeFriend);

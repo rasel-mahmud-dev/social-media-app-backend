@@ -77,6 +77,10 @@ class Base {
         return (await Base.Db(this.collectionName)).deleteOne(filter)
     }
 
+    static async deleteMany(filter) {
+        return (await Base.Db(this.collectionName)).deleteMany(filter)
+    }
+
     static async updateOne(filter, updateData, opt= {}) {
         return (await Base.Db(this.collectionName)).updateOne(filter, updateData, opt)
     }

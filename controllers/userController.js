@@ -1,6 +1,7 @@
 import {ObjectId} from "mongodb";
 import User from "../models/User";
 import Friend from "../models/Friend";
+import {getFeedQuery} from "./feedController";
 
 function getFriend(match) {
     return Friend.aggregate([
@@ -73,7 +74,7 @@ export const getUsers = async (req, res, next) => {
             {
                 $match: {
                     _id: {
-                        $nin: [ new ObjectId(req.user._id), ...inFriendList]
+                        $nin: [new ObjectId(req.user._id), ...inFriendList]
                     }
                 }
             },
@@ -228,3 +229,40 @@ export const rejectFriendRequest = async (req, res, next) => {
         next(error);
     }
 }
+
+
+// get all peoples without friends
+export const getProfile = async (req, res, next) => {
+    const {userId} = req.params
+    try {
+        let allFriends = await getFriend({
+            $match: {
+                status: "accepted",
+                $or: [
+                    {receiverId: new ObjectId(userId)},
+                    {senderId: new ObjectId(userId)}
+                ]
+            }
+        })
+
+        let feeds = await getFeedQuery({
+            $match: {
+                userId: new ObjectId(userId)
+            }
+        })
+
+        let user = await User.findOne({
+                _id: new ObjectId(userId)
+        }, {projection: {
+            password: 0,
+                email: 0
+            }})
+
+        res.status(200).json({friends: allFriends, feeds: feeds, user});
+
+
+    } catch (ex) {
+        next(ex);
+    }
+}
+

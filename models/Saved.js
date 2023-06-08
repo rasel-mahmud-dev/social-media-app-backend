@@ -1,17 +1,16 @@
+
 import Base from "./Base";
 
-class Comment extends Base {
-    static collectionName = "comment";
+class Saved extends Base {
+    static collectionName = "saved";
 
     // _id  => database uuid
 
     constructor({
-            comment,
             feedId,
             userId // ref
         }) {
-        super("comment");
-        this.comment = comment
+        super(Saved.collectionName);
         this.feedId = feedId
         this.userId = userId
         this.createdAt = new Date();
@@ -19,4 +18,4 @@ class Comment extends Base {
     }
 }
 
-export default Comment;
+export default Saved;

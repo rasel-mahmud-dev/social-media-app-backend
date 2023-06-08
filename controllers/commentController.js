@@ -1,9 +1,9 @@
 import {ObjectId} from "mongodb";
-import Feed from './../models/Feed';
+import Comment from './../models/Comment';
 import pusher from "../pusher/pusher";
 
 function getCommentQuery(match) {
-    return Feed.aggregate([
+    return Comment.aggregate([
         match ? match : {$match: {}},
         {
             $lookup: {
@@ -40,7 +40,7 @@ export const getComments = async (req, res, next) => {
     try {
         let comments = await getCommentQuery({
             $match: {
-                feedId: new ObjectId(req.param.feedId)
+                feedId: new ObjectId(req.params.feedId)
             }
         })
         res.status(200).json({comments});
@@ -67,17 +67,18 @@ export const createComment = async (req, res, next) => {
 
         if (newComment) {
 
-            let comment = await getComments({
-                $match: {_id: new ObjectId(newComment._id)}
+            let newPopulatedComment = await getCommentQuery({
+                $match: {_id: newComment._id}
             })
 
-            pusher.trigger("public-channel", "new-comment", {
-                comment: comment[0]
-            }).catch(ex => {
-                //handle error
-            })
 
-            res.status(201).json({comment});
+            // pusher.trigger("public-channel", "new-comment", {
+            //     comment: newPopulatedComment[0]
+            // }).catch(ex => {
+            //     //handle error
+            // })
+
+            res.status(201).json({comment:  newPopulatedComment[0]});
 
         } else {
             next("Comment post fail");
@@ -91,7 +92,10 @@ export const createComment = async (req, res, next) => {
 // get all feed comments
 export const deleteComment = async (req, res, next) => {
     try {
-        let result = await Comment.deleteOne({_id: new ObjectId(req.param.feedId)})
+        let result = await Comment.deleteOne({
+            userId: new ObjectId(req.user._id),
+            _id: new ObjectId(req.params.feedId)
+        })
         res.status(201).json({message: "comment has been deleted"});
     } catch (ex) {
         next(ex);

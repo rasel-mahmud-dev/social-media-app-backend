@@ -74,6 +74,65 @@ export const createNewUser = (req, res, next) => {
     });
 };
 
+
+export const updateProfile = (req, res, next) => {
+
+    // parse a file upload
+    const form = formidable({multiples: false});
+
+    form.parse(req, async (err, fields, files) => {
+        if (err) return next("Can't read form data");
+        try {
+            const {
+                firstName,
+                lastName,
+                email,
+                avatar
+            } = fields;
+
+            let user = await User.findOne({_id: new ObjectId(req.user._id)});
+            if (!user) {
+                return res.status(404).json({message: "Profile not found"});
+            }
+
+            let avatarUrl = "";
+
+            if(files && files.avatar){
+                let newPath = files.avatar.filepath.replace(files.avatar.newFilename, files.avatar.originalFilename)
+                await cp(files.avatar.filepath, newPath)
+
+                let uploadInfo = await imageUpload(newPath, "social-app")
+                if (uploadInfo) {
+                    avatarUrl = uploadInfo.secure_url
+                }
+            }
+
+
+            let update = {}
+            if(firstName) update["firstName"] = firstName
+            if(lastName) update["lastName"] = lastName
+            if(email) update["email"] = email
+            if(avatar) update["avatar"] = avatar
+            if(avatarUrl) update["avatar"] = avatarUrl
+
+
+            let result = await User.updateOne({
+                _id: new ObjectId(req.user._id)
+            }, {
+                $set: update
+            })
+
+            console.log(result)
+
+            res.status(201).json({user: {}});
+
+        } catch (ex) {
+            next(ex);
+        }
+
+    });
+};
+
 export const login = async (req, res, next) => {
     try {
         const {email, password} = req.body;

@@ -4,11 +4,12 @@ import Feed from './../models/Feed';
 import {cpSync} from "fs"
 import Like from "../models/Like";
 import pusher from "../pusher/pusher";
+import Comment from "../models/Comment";
 
 const formidable = require("formidable");
 
 
-function getFeedQuery(match) {
+export function getFeedQuery(match) {
     return Feed.aggregate([
         match ? match : {$match: {}},
         {
@@ -64,6 +65,20 @@ export const getFeeds = async (req, res, next) => {
     }
 }
 
+// get feed
+export const getFeed = async (req, res, next) => {
+    try {
+        let feeds = await getFeedQuery({
+            $match: {
+                _id: new ObjectId(req.params.feedId)
+            }
+        })
+        res.status(200).json({feed: feeds[0]});
+    } catch (ex) {
+        next(ex);
+    }
+}
+
 
 // create feed
 export const createFeed = (req, res, next) => {
@@ -87,7 +102,6 @@ export const createFeed = (req, res, next) => {
                 let fileUploadPromises = []
 
                 files.image.forEach(image => {
-                    console.log(image.filepath);
                     let newPath = image.filepath.replace(image.newFilename, image.originalFilename)
                     cpSync(files.avatar.filepath, newPath)
                     console.log(newPath);
@@ -122,7 +136,7 @@ export const createFeed = (req, res, next) => {
                     //handle error
                 })
 
-                res.status(201).json({feed});
+                res.status(201).json({feed: feed[0]});
 
             } else {
                 next("Feed post fail");
@@ -132,6 +146,36 @@ export const createFeed = (req, res, next) => {
             next(ex);
         }
     });
+};
+
+
+
+// create feed
+export const deleteFeed = async (req, res, next) => {
+    try {
+        let result = await Feed.deleteOne({
+            userId: new ObjectId(req.user._id),
+            _id: new ObjectId(req.params.feedId)
+        })
+        // also remove all comment associate this feed
+        await Comment.deleteMany({
+            userId: new ObjectId(req.user._id),
+            feedId: new ObjectId(req.params.feedId)
+        })
+
+        pusher.trigger("public-channel", "remove-feed", {
+            feed: {
+                userId: req.user._id,
+                _id: req.params.feedId
+            }
+        }).catch(ex=>{
+            //handle error
+        })
+
+        res.status(201).json({message: "Feed has been deleted"});
+    } catch (ex) {
+        next(ex);
+    }
 };
 
 
