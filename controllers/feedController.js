@@ -3,50 +3,61 @@ import imageUpload from "../services/imageUpload";
 import Feed from './../models/Feed';
 import {cpSync} from "fs"
 import Like from "../models/Like";
+import pusher from "../pusher/pusher";
 
 const formidable = require("formidable");
 
 
+function getFeedQuery(match) {
+    return Feed.aggregate([
+        match ? match : {$match: {}},
+        {
+            $lookup: {
+                from: "users",
+                localField: "userId",
+                foreignField: "_id",
+                as: "author"
+            }
+        },
+        {
+            $unwind: {path: "$author"}
+        },
+        {
+            $lookup: {
+                from: "like",
+                localField: "_id",
+                foreignField: "feedId",
+                as: "likes"
+            }
+        },
+        {
+            $sort: {
+                createdAt: -1
+            }
+        },
+        {
+            $project: {
+                author: {
+                    password: 0,
+                    role: 0,
+                    createdAt: 0,
+                    updatedAt: 0,
+                    email: 0,
+                },
+                likes: {
+                    "feedId": 0,
+                    "createdAt": 0,
+                    "updatedAt": 0
+                }
+            }
+        }
+    ])
+}
+
 // get all feeds
 export const getFeeds = async (req, res, next) => {
     try {
-        let feeds = await Feed.aggregate([
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "userId",
-                    foreignField: "_id",
-                    as: "author"
-                }
-            },
-            {
-                $unwind: {path: "$author"}
-            },
-            {
-                $lookup: {
-                    from: "like",
-                    localField: "_id",
-                    foreignField: "feedId",
-                    as: "likes"
-                }
-            },
-            {
-                $project: {
-                    author: {
-                        password: 0,
-                        role: 0,
-                        createdAt: 0,
-                        updatedAt: 0,
-                        email: 0,
-                    },
-                    likes: {
-                        "feedId": 0,
-                        "createdAt": 0,
-                        "updatedAt": 0
-                    }
-                }
-            }
-        ])
+        let feeds = await getFeedQuery(null)
         res.status(200).json(feeds);
     } catch (ex) {
         next(ex);
@@ -101,7 +112,18 @@ export const createFeed = (req, res, next) => {
 
             feed = await feed.save()
             if (feed) {
+                feed = await getFeedQuery({
+                    $match: {_id: new ObjectId(feed._id)}
+                })
+
+                pusher.trigger("public-channel", "new-feed", {
+                    feed: feed[0]
+                }).catch(ex=>{
+                    //handle error
+                })
+
                 res.status(201).json({feed});
+
             } else {
                 next("Feed post fail");
             }
@@ -128,7 +150,7 @@ export const toggleLike = async (req, res, next) => {
                 feedId: new ObjectId(feedId),
                 userId: new ObjectId(req.user._id)
             })
-            res.status(201).json({isAdded: false});
+            res.status(201).json({isAdded: false, removeId: exists._id});
         } else {
             let newLike = await new Like({
                 feedId: new ObjectId(feedId),

@@ -1,26 +1,79 @@
 import {ObjectId} from "mongodb";
 import User from "../models/User";
-import Base from "../models/Base";
 import Friend from "../models/Friend";
 
+function getFriend(match) {
+    return Friend.aggregate([
+        match,
+        {
+            $lookup: {
+                from: "users",
+                localField: "senderId",
+                foreignField: "_id",
+                as: "sender"
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "receiverId",
+                foreignField: "_id",
+                as: "receiver"
+            }
+        },
+        {
+            $unwind: {path: "$sender"}
+        }, {
+            $unwind: {path: "$receiver"}
+        },
+        {
+            $project: {
+                sender: {
+                    _id: 0,
+                    password: 0,
+                    role: 0,
+                    friends: 0,
+                    createdAt: 0,
+                    updatedAt: 0,
+                    email: 0,
+                },
+                receiver: {
+                    _id: 0,
+                    password: 0,
+                    role: 0,
+                    friends: 0,
+                    createdAt: 0,
+                    updatedAt: 0,
+                    email: 0,
+                }
+            }
+        }
+    ])
+}
 
+// get all peoples without friends
 export const getUsers = async (req, res, next) => {
     try {
-        let authUser = await User.findOne({_id: new ObjectId(req.user._id)})
+        let friends = await Friend.find({
+            status: "accepted",
+            $or: [
+                {receiverId: new ObjectId(req.user._id)},
+                {senderId: new ObjectId(req.user._id)}
+            ]
+        }, {projection: {senderId: 1, receiverId: 1}})
 
-        if (!authUser) return next("Internal error")
-
-        let authUserFriends = []
-
-        if (authUser && authUser["friends"]) {
-            authUserFriends = authUser["friends"].map(id => new ObjectId(id)) || []
+        let inFriendList = []
+        if (friends && Array.isArray(friends)) {
+            inFriendList = friends.map(f => f.senderId)
+            inFriendList = [...inFriendList, ...friends.map(f => f.receiverId)]
         }
+
 
         let users = await User.aggregate([
             {
                 $match: {
                     _id: {
-                        $nin: [new ObjectId(req.user._id), ...authUserFriends]
+                        $nin: [ new ObjectId(req.user._id), ...inFriendList]
                     }
                 }
             },
@@ -53,55 +106,20 @@ export const getFriends = async (req, res, next) => {
     try {
 
         // get all friend request
-        let allFriends = await Friend.aggregate([
-            {
-                $match: {
-                    receiverId: new ObjectId(req.user._id)
-                }
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "senderId",
-                    foreignField: "_id",
-                    as: "friend"
-                }
-            },
-            {
-                $unwind: {path: "$friend"}
-            },
-            {
-                $replaceRoot: {
-                    newRoot: {
-                        $mergeObjects: [
-                            "$friend",
-                            {
-                                _id: "$_id",
-                                receiverId: "$receiverId",
-                                senderId: "$senderId",
-                                createdAt: "$createdAt",
-                                status: "$status"
-                            }
-                        ]
-                    }
-                }
-            },
-            {
-                $project: {
-                    password: 0,
-                    role: 0,
-                    friends: 0,
-                    createdAt: 0,
-                    updatedAt: 0,
-                    email: 0,
-                }
+        let allFriends = await getFriend({
+            $match: {
+                $or: [
+                    {receiverId: new ObjectId(req.user._id)},
+                    {senderId: new ObjectId(req.user._id)}
+                ]
             }
-        ])
+        })
 
         let pendingFriends = allFriends.filter(friend => friend.status === "pending")
         let friends = allFriends.filter(friend => friend.status === "accepted")
 
         res.status(200).json({friends: friends, pendingFriends});
+
     } catch (ex) {
         next(ex);
     }
@@ -112,126 +130,27 @@ export const addFriend = async (req, res, next) => {
 
     try {
         const {friendId} = req.body
-
-        let friendRequest = await Friend.updateOne({
-            receiverId: new ObjectId(req.user._id),
-            senderId: new ObjectId(friendId)
+        let payload = {
+            receiverId: new ObjectId(friendId),
+            senderId: new ObjectId(req.user._id),
+            status: "pending",
+            createdAt: new Date()
+        }
+        await Friend.updateOne({
+            receiverId: new ObjectId(friendId),
+            senderId: new ObjectId(req.user._id),
         }, {
-            $set: {
-                receiverId: new ObjectId(req.user._id),
-                senderId: new ObjectId(friendId),
-                status: "pending",
-                createdAt: new Date()
-            }
-
+            $set: payload
         }, {
-            upsert: true,
-            new: true
+            upsert: true
         })
-
-        console.log(friendRequest)
-
-        // client = await Base.getClient()
-        //
-        // // Start a session
-        // session = client.startSession();
-        // //
-        // await session.withTransaction(async () => {
-        //     // Add your transactional operations here
-        //
-        //     // Operation 1: Update document
-        //     const collection = client.db("social-app").collection('users');
-        //
-        //     await collection.updateOne({_id: new ObjectId(req.user._id),},
-        //         {$addToSet: { friends: new ObjectId(friendId) },},
-        //         // {session } // local mongo not support transaction
-        //     );
-        //
-        //     // Operation 2: Delete document
-        //     await collection.updateOne({_id: new ObjectId(friendId),},
-        //         {$addToSet: { friends: new ObjectId(req.user._id) },},
-        //         // {session} // local mongo not support transaction
-        //     );
-        //
-        //     // Add more operations as needed
-        //     console.log('Transaction completed successfully');
-        // });
-        //
-        // console.log('Transaction completed successfully');
-
-    } catch (error) {
-        console.error(error);
-
-
-    } finally {
-
-    }
-}
-
-
-export const removeFriend = async (req, res, next) => {
-    let session;
-    let client
-
-    try {
-        const {friendId} = req.body
-
-        client = await Base.getClient()
-
-        // Start a session
-        session = client.startSession();
-        //
-        await session.withTransaction(async () => {
-            // Add your transactional operations here
-
-            // Operation 1: Update document
-            const collection = client.db("social-app").collection('users');
-
-            await collection.updateOne({_id: new ObjectId(req.user._id),},
-                {$pull: {friends: new ObjectId(friendId)},},
-                // {session } // local mongo not support transaction
-            );
-
-            // Operation 2: Delete document
-            await collection.updateOne({_id: new ObjectId(friendId),},
-                {$pull: {friends: new ObjectId(req.user._id)},},
-                // {session} // local mongo not support transaction
-            );
-
-            // Add more operations as needed
-            console.log('Transaction completed successfully');
-        });
-
-        console.log('Transaction completed successfully');
-
-    } catch (error) {
-        console.error('Transaction aborted:', error);
-
-
-    } finally {
-        // End the session
-        session.endSession();
-    }
-
-}
-
-
-
-export const acceptFriendRequest = async (req, res, next) => {
-
-    try {
-        const {senderId} = req.body
-
-        let result = await Friend.updateOne({
-            receiverId: new ObjectId(req.user._id),
-            senderId: new ObjectId(senderId)
-        }, {
-            $set: {
-                status: "accepted"
+        let friend = await getFriend({
+            $match: {
+                receiverId: new ObjectId(friendId),
+                senderId: new ObjectId(req.user._id),
             }
         })
-
-        console.log(result)
+        res.status(201).json({message: "Friend request has send", friend: friend[0]})
 
     } catch (error) {
         next(error);
@@ -239,15 +158,72 @@ export const acceptFriendRequest = async (req, res, next) => {
 }
 
 
+export const removeFriend = async (req, res, next) => {
+    try {
+        const {friendId} = req.body
+        await Friend.deleteOne({
+            _id: new ObjectId(friendId),
+            $or: [
+                {receiverId: new ObjectId(req.user._id)},
+                {senderId: new ObjectId(req.user._id)}
+            ]
+        })
+
+        res.status(201).json({
+            message: "Friend has been removed"
+        })
+
+    } catch (error) {
+        next(error);
+
+    }
+}
+
+
+export const acceptFriendRequest = async (req, res, next) => {
+
+    try {
+        const {friendId} = req.body
+
+        let result = await Friend.updateOne({
+            _id: new ObjectId(friendId),
+            receiverId: new ObjectId(req.user._id),
+        }, {
+            $set: {
+                status: "accepted"
+            }
+        })
+
+        let friend = await getFriend({
+            $match: {
+                _id: new ObjectId(friendId),
+                receiverId: new ObjectId(req.user._id),
+                status: "accepted"
+            }
+        })
+        return res.status(201).json({message: "Request Accepted", friend: friend[0]})
+
+
+    } catch (error) {
+        console.log(error)
+        next(error);
+    }
+}
+
+
 export const rejectFriendRequest = async (req, res, next) => {
     try {
-        const {senderId} = req.body
+        const {friendId} = req.body
 
         let result = await Friend.deleteOne({
             receiverId: new ObjectId(req.user._id),
-            senderId: new ObjectId(senderId)
+            senderId: new ObjectId(friendId)
         })
-        console.log(result)
+        if (result.modifiedCount) {
+            res.status(201).json({message: "Request Accepted"})
+        } else {
+            next("Request not accepted");
+        }
     } catch (error) {
         next(error);
     }
