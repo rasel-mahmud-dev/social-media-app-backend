@@ -132,8 +132,9 @@ export const createFeed = (req, res, next) => {
 
                 pusher.trigger("public-channel", "new-feed", {
                     feed: feed[0]
+                }).then((a)=>{
                 }).catch(ex=>{
-                    //handle error
+                    console.log(ex.message)
                 })
 
                 res.status(201).json({feed: feed[0]});
@@ -189,12 +190,23 @@ export const toggleLike = async (req, res, next) => {
             userId: new ObjectId(req.user._id)
         })
 
+        let response = {}
+
         if (exists) {
             await Like.deleteOne({
                 feedId: new ObjectId(feedId),
                 userId: new ObjectId(req.user._id)
             })
-            res.status(201).json({isAdded: false, removeId: exists._id});
+
+            response = {
+                isAdded: false,
+                like: {
+                    _id: exists._id,
+                    feedId: feedId,
+                    userId: req.user._id
+                }
+            }
+
         } else {
             let newLike = await new Like({
                 feedId: new ObjectId(feedId),
@@ -202,8 +214,17 @@ export const toggleLike = async (req, res, next) => {
                 userId: new ObjectId(req.user._id)
             })
             newLike = await newLike.save()
-            res.status(201).json({isAdded: true, newLike});
+            response = {
+                isAdded: true,
+                like: newLike
+            }
         }
+
+        await pusher.trigger("public-channel", "toggle-reaction",  response).catch(ex=>{
+            console.log(ex.message)
+        })
+
+        res.status(201).json(response);
 
     } catch (ex) {
         next(ex);

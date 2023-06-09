@@ -29,7 +29,8 @@ export const createNewUser = (req, res, next) => {
                 return res.status(404).json({message: "Your are already registered"});
             }
 
-           
+
+            console.log(files)
 
             if(files && files.avatar){
                 let newPath = files.avatar.filepath.replace(files.avatar.newFilename, files.avatar.originalFilename)
@@ -41,6 +42,8 @@ export const createNewUser = (req, res, next) => {
                 if (uploadInfo) {
                     avatarUrl = uploadInfo.secure_url
                 }
+
+                console.log(uploadInfo)
         
             }
 
@@ -101,10 +104,13 @@ export const updateProfile = (req, res, next) => {
                 let newPath = files.avatar.filepath.replace(files.avatar.newFilename, files.avatar.originalFilename)
                 await cp(files.avatar.filepath, newPath)
 
-                let uploadInfo = await imageUpload(newPath, "social-app")
-                if (uploadInfo) {
-                    avatarUrl = uploadInfo.secure_url
-                }
+                let result = await imageUpload(newPath)
+                console.log(result)
+
+                // let uploadInfo = await imageUpload(sirvUploadImage, "social-app")
+                // if (uploadInfo) {
+                //     avatarUrl = uploadInfo.secure_url
+                // }
             }
 
 

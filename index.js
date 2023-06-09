@@ -29,6 +29,7 @@ const whitelist = [process.env.FRONTEND]
 
 app.use(cors(corsOptions))
 app.use(express.json())
+app.use("/public/", express.static("public"))
 app.use("/static/", express.static("static"))
 
 

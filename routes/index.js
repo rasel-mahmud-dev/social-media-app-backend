@@ -4,6 +4,7 @@ import feedRoute from "./feedRoute";
 import userRoute from "./userRoute";
 import commentRoute from "./commentRoute";
 import savedRoute from "./savedRoute";
+import storyRoute from "./storyRoute";
 
 
 const router = require("express").Router()
@@ -17,6 +18,8 @@ router.use("/api/v1/feed", feedRoute)
 router.use("/api/v1/users", userRoute)
 router.use("/api/v1/comments", commentRoute)
 router.use("/api/v1/saved", savedRoute)
+router.use("/api/v1/story", storyRoute)
+
 
 
 export default router
