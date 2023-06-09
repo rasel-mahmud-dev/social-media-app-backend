@@ -1,13 +1,13 @@
 import User from "../models/User";
-const formidable = require("formidable");
 import {createToken, parseToken} from "../jwt";
 import {makeHash} from "../bcrypt/bcrypt";
-import {cp} from "fs/promises";
-import imageUpload from "../services/imageUpload";
 import loginService from "../services/loginService";
 import createUserService from "../services/createUserService";
 import getToken from "../utils/getToken";
-import { ObjectId } from 'mongodb';
+import {ObjectId} from 'mongodb';
+import imageKitUpload from "../services/ImageKitUpload";
+
+const formidable = require("formidable");
 
 
 export const createNewUser = (req, res, next) => {
@@ -29,24 +29,15 @@ export const createNewUser = (req, res, next) => {
                 return res.status(404).json({message: "Your are already registered"});
             }
 
+            let avatarUrl = "";
 
-            console.log(files)
-
-            if(files && files.avatar){
-                let newPath = files.avatar.filepath.replace(files.avatar.newFilename, files.avatar.originalFilename)
-                await cp(files.avatar.filepath, newPath)
-
-                let avatarUrl = "";
-        
-                let uploadInfo = await imageUpload(newPath, "social-app")
+            if (files && files.avatar) {
+                let fileName = files.avatar.newFilename + "-" + files.avatar.originalFilename
+                let uploadInfo = await imageKitUpload(files.avatar.filepath, fileName, "social-app")
                 if (uploadInfo) {
-                    avatarUrl = uploadInfo.secure_url
+                    avatarUrl = uploadInfo.url
                 }
-
-                console.log(uploadInfo)
-        
             }
-
 
             let hash = makeHash(password);
 
@@ -55,7 +46,8 @@ export const createNewUser = (req, res, next) => {
                 firstName,
                 lastName,
                 email,
-                hash
+                hash,
+                avatarUrl
             })
 
             let {password: s, ...other} = authUser;
@@ -100,26 +92,20 @@ export const updateProfile = (req, res, next) => {
 
             let avatarUrl = "";
 
-            if(files && files.avatar){
-                let newPath = files.avatar.filepath.replace(files.avatar.newFilename, files.avatar.originalFilename)
-                await cp(files.avatar.filepath, newPath)
-
-                let result = await imageUpload(newPath)
-                console.log(result)
-
-                // let uploadInfo = await imageUpload(sirvUploadImage, "social-app")
-                // if (uploadInfo) {
-                //     avatarUrl = uploadInfo.secure_url
-                // }
+            if (files && files.avatar) {
+                let fileName = `${files.avatar.newFilename}-${files.avatar.originalFilename}`
+                let result = await imageKitUpload(files.avatar.filepath, fileName, "social-app")
+                if (result) {
+                    avatarUrl = result.url
+                }
             }
 
-
             let update = {}
-            if(firstName) update["firstName"] = firstName
-            if(lastName) update["lastName"] = lastName
-            if(email) update["email"] = email
-            if(avatar) update["avatar"] = avatar
-            if(avatarUrl) update["avatar"] = avatarUrl
+            if (firstName) update["firstName"] = firstName
+            if (lastName) update["lastName"] = lastName
+            if (email) update["email"] = email
+            if (avatar) update["avatar"] = avatar
+            if (avatarUrl) update["avatar"] = avatarUrl
 
 
             let result = await User.updateOne({
@@ -128,9 +114,7 @@ export const updateProfile = (req, res, next) => {
                 $set: update
             })
 
-            console.log(result)
-
-            res.status(201).json({user: {}});
+            res.status(201).json({user: update});
 
         } catch (ex) {
             next(ex);
@@ -147,37 +131,36 @@ export const login = async (req, res, next) => {
 
         res.status(201).json({token, user: userData});
     } catch (ex) {
-        console.log(ex)
         next(ex);
     }
 };
 
 
-    export const verifyAuth = async (req, res, next) => {
+export const verifyAuth = async (req, res, next) => {
 
-        let token = getToken(req)
-    
-        try {
-            let data = await parseToken(token)
-        
-            if (!data) {
-                return res.status(409).json({message: "Please login first"})
-            }
-    
-            let user = await User.findOne({_id: new ObjectId(data._id)})
-    
-            if (!user) {
-                return res.status(409).json({message: "Please login first"})
-            }
-    
-            user["password"] = null
-    
-            res.status(201).json({
-                user,
-            })
-    
-        } catch (ex) {
-            next(ex)
+    let token = getToken(req)
+
+    try {
+        let data = await parseToken(token)
+
+        if (!data) {
+            return res.status(409).json({message: "Please login first"})
         }
+
+        let user = await User.findOne({_id: new ObjectId(data._id)})
+
+        if (!user) {
+            return res.status(409).json({message: "Please login first"})
+        }
+
+        user["password"] = null
+
+        res.status(201).json({
+            user,
+        })
+
+    } catch (ex) {
+        next(ex)
     }
+}
 

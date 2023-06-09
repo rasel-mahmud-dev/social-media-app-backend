@@ -1,10 +1,9 @@
 import {ObjectId} from "mongodb";
-import imageUpload from "../services/imageUpload";
 import Feed from './../models/Feed';
-import {cpSync} from "fs"
 import Like from "../models/Like";
 import pusher from "../pusher/pusher";
 import Comment from "../models/Comment";
+import imageKitUpload from "../services/ImageKitUpload";
 
 const formidable = require("formidable");
 
@@ -102,17 +101,15 @@ export const createFeed = (req, res, next) => {
                 let fileUploadPromises = []
 
                 files.image.forEach(image => {
-                    let newPath = image.filepath.replace(image.newFilename, image.originalFilename)
-                    cpSync(files.avatar.filepath, newPath)
-                    console.log(newPath);
-                    fileUploadPromises.push(imageUpload(newPath, "social-app"))
+                    let name = image.newFilename + "-" + image.originalFilename
+                    fileUploadPromises.push(imageKitUpload(image.filepath, name, "social-app"))
                 })
 
                 let result = await Promise.allSettled(fileUploadPromises)
 
                 result.forEach(item => {
                     if (item.status === "fulfilled" && item.value) {
-                        images.push(item.value.secure_url)
+                        images.push(item.value.url)
                     }
                 })
             }
@@ -132,8 +129,8 @@ export const createFeed = (req, res, next) => {
 
                 pusher.trigger("public-channel", "new-feed", {
                     feed: feed[0]
-                }).then((a)=>{
-                }).catch(ex=>{
+                }).then(() => {
+                }).catch(ex => {
                     console.log(ex.message)
                 })
 
@@ -148,7 +145,6 @@ export const createFeed = (req, res, next) => {
         }
     });
 };
-
 
 
 // create feed
@@ -169,7 +165,7 @@ export const deleteFeed = async (req, res, next) => {
                 userId: req.user._id,
                 _id: req.params.feedId
             }
-        }).catch(ex=>{
+        }).catch(ex => {
             //handle error
         })
 
@@ -220,7 +216,7 @@ export const toggleLike = async (req, res, next) => {
             }
         }
 
-        await pusher.trigger("public-channel", "toggle-reaction",  response).catch(ex=>{
+        await pusher.trigger("public-channel", "toggle-reaction", response).catch(ex => {
             console.log(ex.message)
         })
 

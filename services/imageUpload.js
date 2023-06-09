@@ -25,7 +25,6 @@ console.log(a)
 const imageUpload = (imagePath, dir)=>{
     return new Promise(async (resolve, reject)=>{
         try{
-            console.log(imagePath)
             let s = await cloudinaryHandler().uploader.upload(
                 imagePath,
                 {
