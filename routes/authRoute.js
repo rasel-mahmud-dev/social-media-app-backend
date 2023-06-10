@@ -1,6 +1,7 @@
 import {createNewUser, login, updateProfile, verifyAuth} from "../controllers/authController";
 import {auth} from "../middlewares";
 
+
 const router = require("express").Router();
 
 router.post("/registration", createNewUser);
