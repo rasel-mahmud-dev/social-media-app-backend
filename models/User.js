@@ -8,6 +8,7 @@ class User extends Base {
     constructor({
         firstName,
         lastName,
+        googleId = null,
         role = "USER",
         email,
         fullName,
@@ -21,9 +22,9 @@ class User extends Base {
         this.firstName = firstName;
         this.lastName = lastName;
         this.fullName = fullName;
+        this.googleId = googleId;
         this.email = email;
         this.password = password;
-        this.friends = [];
         this.createdAt = new Date();
         this.updatedAt = new Date();
     }

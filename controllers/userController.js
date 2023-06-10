@@ -2,6 +2,7 @@ import {ObjectId} from "mongodb";
 import User from "../models/User";
 import Friend from "../models/Friend";
 import {getFeedQuery} from "./feedController";
+import Media from "../models/Media";
 
 function getFriend(match) {
     return Friend.aggregate([
@@ -247,18 +248,37 @@ export const getProfile = async (req, res, next) => {
 
         let feeds = await getFeedQuery({
 
-                userId: new ObjectId(userId)
+            userId: new ObjectId(userId)
 
         })
 
         let user = await User.findOne({
-                _id: new ObjectId(userId)
-        }, {projection: {
-            password: 0,
+            _id: new ObjectId(userId)
+        }, {
+            projection: {
+                password: 0,
                 email: 0
-            }})
+            }
+        })
 
         res.status(200).json({friends: allFriends, feeds: feeds, user});
+
+
+    } catch (ex) {
+        next(ex);
+    }
+}
+
+
+// get all peoples without friends
+export const getMedia = async (req, res, next) => {
+    const {userId} = req.params
+    try {
+        let allMedia = await Media.find({
+            userId: new ObjectId(userId)
+        })
+
+        res.status(200).json({media: allMedia});
 
 
     } catch (ex) {

@@ -6,6 +6,8 @@ import createUserService from "../services/createUserService";
 import getToken from "../utils/getToken";
 import {ObjectId} from 'mongodb';
 import imageKitUpload from "../services/ImageKitUpload";
+import oauth2Client from "../services/googeAuth";
+import {google} from "googleapis";
 
 const formidable = require("formidable");
 
@@ -130,6 +132,71 @@ export const login = async (req, res, next) => {
         let {token, userData} = await loginService(email, password)
 
         res.status(201).json({token, user: userData});
+    } catch (ex) {
+        next(ex);
+    }
+};
+
+
+export const loginWithGoogle = async (req, res, next) => {
+    try {
+        const {code} = req.query;
+
+        // Exchange the authorization code for access and refresh tokens
+        const {tokens} = await oauth2Client.getToken(code);
+
+        // Set the access and refresh tokens for further API calls
+        oauth2Client.setCredentials(tokens);
+
+        // Get the user's email using the Google People API
+        const peopleApi = google.people({version: 'v1', auth: oauth2Client});
+        const {data} = await peopleApi.people.get({
+            resourceName: 'people/me',
+            personFields: 'emailAddresses,names,photos,metadata',
+        });
+
+        // Extract the email address from the response
+        const email = data.emailAddresses[0].value;
+        const avatar = data.photos[0].url;
+        const lastName = data.names[0].familyName;
+        const firstName = data.names[0].givenName;
+        const fullName = data.names[0].displayName;
+        const uniqueId = data.metadata.sources[0].id; // Retrieve the unique ID
+
+
+        let user = await User.findOne({
+            $or: [
+                {googleId: uniqueId},
+                {email: email},
+            ]
+        })
+
+        if (!user) {
+            user = {
+                googleId: uniqueId,
+                avatar: avatar,
+                lastName: lastName,
+                firstName: firstName,
+                fullName: fullName,
+                password: null,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                role: "USER",
+            }
+            let result = await User.updateOne({
+                googleId: uniqueId,
+            }, {
+                $set: user
+            }, {
+                upsert: true
+            })
+            if (result && result.upsertedId) {
+                user._id = result.upsertedId
+            }
+        }
+
+        let token = await createToken(user._id, user.email, user.role)
+        res.status(201).json({token, user: user});
     } catch (ex) {
         next(ex);
     }

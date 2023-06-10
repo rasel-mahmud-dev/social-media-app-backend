@@ -66,6 +66,12 @@ class Base {
         return Base.Db(this.collectionName)
     }
 
+    static async insertOne(...params) {
+        return (await Base.Db(this.collectionName)).insertOne(...params)
+    }
+    static async insertMany(...params) {
+        return (await Base.Db(this.collectionName)).insertMany(...params);
+    }
     static async find(...params) {
         return (await Base.Db(this.collectionName)).find(...params).toArray();
     }

@@ -4,6 +4,7 @@ import Like from "../models/Like";
 import pusher from "../pusher/pusher";
 import Comment from "../models/Comment";
 import imageKitUpload from "../services/ImageKitUpload";
+import Media from "../models/Media";
 
 const formidable = require("formidable");
 
@@ -103,11 +104,19 @@ export const createFeed = (req, res, next) => {
 
             let images = []
 
+            let incomingFiles = []
+
             if (files && files.image && Array.isArray(files.image)) {
+                incomingFiles = files.image
 
-                let fileUploadPromises = []
+            } else if(typeof files.image === "object") {
+                incomingFiles = [files.image]
+            }
 
-                files.image.forEach(image => {
+            let fileUploadPromises = []
+
+            if(incomingFiles && Array.isArray(incomingFiles)){
+                incomingFiles.forEach(image => {
                     let name = image.newFilename + "-" + image.originalFilename
                     fileUploadPromises.push(imageKitUpload(image.filepath, name, "social-app"))
                 })
@@ -121,6 +130,7 @@ export const createFeed = (req, res, next) => {
                 })
             }
 
+
             let feed = new Feed({
                 content,
                 userId: new ObjectId(req.user._id),
@@ -130,9 +140,28 @@ export const createFeed = (req, res, next) => {
 
             feed = await feed.save()
             if (feed) {
+                let newFeedId = feed._id
                 feed = await getFeedQuery({
                     _id: new ObjectId(feed._id)
                 })
+
+                if(images.length >0) {
+                    let allMedia = images.map(img=>(
+                        {
+                            feedId: newFeedId,
+                            userId: new ObjectId(req.user._id),
+                            type: "image",
+                            url: img
+                        }
+                    ))
+
+                    Media.insertMany(allMedia).catch(ex=>{
+                        console.log("media save fail")
+                    })
+
+                }
+
+
 
                 pusher.trigger("public-channel", "new-feed", {
                     feed: feed[0]
@@ -140,6 +169,7 @@ export const createFeed = (req, res, next) => {
                 }).catch(ex => {
                     console.log(ex.message)
                 })
+
 
                 res.status(201).json({feed: feed[0]});
 

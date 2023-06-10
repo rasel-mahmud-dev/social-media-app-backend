@@ -1,6 +1,6 @@
 import express from "express"
 import cors from "cors";
-
+import morgan from "morgan"
 require("dotenv").config()
 
 import routes  from "./routes"
@@ -28,6 +28,7 @@ const whitelist = [process.env.FRONTEND]
 }
 
 app.use(cors(corsOptions))
+app.use(morgan("dev"))
 app.use(express.json())
 app.use("/public/", express.static("public"))
 app.use("/static/", express.static("static"))
