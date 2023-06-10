@@ -8,6 +8,7 @@ import {ObjectId} from 'mongodb';
 import imageKitUpload from "../services/ImageKitUpload";
 import oauth2Client from "../services/googeAuth";
 import {google} from "googleapis";
+import Profile from "../models/Profile";
 
 const formidable = require("formidable");
 
@@ -23,7 +24,9 @@ export const createNewUser = (req, res, next) => {
                 firstName,
                 lastName,
                 email,
-                password
+                password,
+                gender,
+                birthDay
             } = fields;
 
             let user = await User.findOne({email});
@@ -43,7 +46,6 @@ export const createNewUser = (req, res, next) => {
 
             let hash = makeHash(password);
 
-
             let authUser = await createUserService({
                 firstName,
                 lastName,
@@ -54,6 +56,15 @@ export const createNewUser = (req, res, next) => {
 
             let {password: s, ...other} = authUser;
 
+            Profile.updateOne({
+                userId: new ObjectId(authUser._id)
+            }, {
+                userId: new ObjectId(authUser._id),
+                gender,
+                dateOfBrith: birthDay
+            }, {
+                upsert: true
+            }).catch(ex=>{})
 
             let token = await createToken(authUser._id, authUser.email, authUser.role);
 
