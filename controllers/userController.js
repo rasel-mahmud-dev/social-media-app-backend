@@ -246,9 +246,9 @@ export const getProfile = async (req, res, next) => {
         })
 
         let feeds = await getFeedQuery({
-            $match: {
+
                 userId: new ObjectId(userId)
-            }
+
         })
 
         let user = await User.findOne({

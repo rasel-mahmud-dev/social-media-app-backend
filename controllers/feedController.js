@@ -8,9 +8,9 @@ import imageKitUpload from "../services/ImageKitUpload";
 const formidable = require("formidable");
 
 
-export function getFeedQuery(match) {
+export function getFeedQuery(query = {}) {
     return Feed.aggregate([
-        match ? match : {$match: {}},
+        {$match: query},
         {
             $lookup: {
                 from: "users",
@@ -57,7 +57,16 @@ export function getFeedQuery(match) {
 // get all feeds
 export const getFeeds = async (req, res, next) => {
     try {
-        let feeds = await getFeedQuery(null)
+        const {userId} = req.query
+        let feeds = []
+        if (userId) {
+            feeds = await getFeedQuery({
+                userId: new ObjectId(userId)
+            })
+        } else {
+            feeds = await getFeedQuery()
+        }
+
         res.status(200).json(feeds);
     } catch (ex) {
         next(ex);
@@ -68,9 +77,7 @@ export const getFeeds = async (req, res, next) => {
 export const getFeed = async (req, res, next) => {
     try {
         let feeds = await getFeedQuery({
-            $match: {
-                _id: new ObjectId(req.params.feedId)
-            }
+            _id: new ObjectId(req.params.feedId)
         })
         res.status(200).json({feed: feeds[0]});
     } catch (ex) {
@@ -124,7 +131,7 @@ export const createFeed = (req, res, next) => {
             feed = await feed.save()
             if (feed) {
                 feed = await getFeedQuery({
-                    $match: {_id: new ObjectId(feed._id)}
+                    _id: new ObjectId(feed._id)
                 })
 
                 pusher.trigger("public-channel", "new-feed", {
