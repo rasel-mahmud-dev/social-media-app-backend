@@ -40,9 +40,15 @@ app.use(routes)
 app.use((err, req, res, next)=>{
     let message = "Internal error, Please try again"
     let status = 500
+
     if(err && err.message){
         message = err.message
     }
+
+    if(err && typeof err === "string"){
+        message = err
+    }
+
     if(err && err.status){
         status = err.status
     }

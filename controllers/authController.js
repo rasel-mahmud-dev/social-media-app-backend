@@ -207,7 +207,8 @@ export const loginWithGoogle = async (req, res, next) => {
         }
 
         let token = await createToken(user._id, user.email, user.role)
-        res.status(201).json({token, user: user});
+        // res.status(201).json({token, user: user});
+        res.redirect(process.env.FRONTEND + "/join?token="+ token)
     } catch (ex) {
         next(ex);
     }

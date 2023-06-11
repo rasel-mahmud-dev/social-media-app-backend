@@ -114,6 +114,7 @@ export const createFeed = (req, res, next) => {
             }
 
             let fileUploadPromises = []
+            let uploadFail = incomingFiles.length !== 0
 
             if(incomingFiles && Array.isArray(incomingFiles)){
                 incomingFiles.forEach(image => {
@@ -125,11 +126,13 @@ export const createFeed = (req, res, next) => {
 
                 result.forEach(item => {
                     if (item.status === "fulfilled" && item.value) {
+                        uploadFail = false
                         images.push(item.value.url)
                     }
                 })
             }
 
+            if(uploadFail) return next("Post image upload fail.")
 
             let feed = new Feed({
                 content,
