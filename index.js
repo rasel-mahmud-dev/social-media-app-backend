@@ -68,6 +68,6 @@ app.listen(port, "0.0.0.0", ()=>{
 
 
     // indexes mongodb
-    indexesCollections()
+    // indexesCollections()
 
 })

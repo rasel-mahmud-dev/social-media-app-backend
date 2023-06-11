@@ -16,7 +16,6 @@ class Message extends Base {
                     message,
                     groupId,
                     // channelName,
-                    isUpdated = false
 
                 }) {
         super(Message.collectionName);
@@ -27,7 +26,7 @@ class Message extends Base {
         this.message = message
         this.createdAt = new Date();
         this.updatedAt = new Date();
-        this.isUpdated = isUpdated
+        this.isEdited = false
     }
 }
 

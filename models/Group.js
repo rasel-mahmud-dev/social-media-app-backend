@@ -16,7 +16,6 @@ class Group extends Base {
         this.type = data.type || "private" // group
         this.participants = data.participants
     }
-
 }
 
 

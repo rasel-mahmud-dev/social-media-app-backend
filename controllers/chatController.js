@@ -1,6 +1,9 @@
 import Message from "../models/Message";
 import {ObjectId} from "mongodb";
 import pusher from "../pusher/pusher";
+import Group from "../models/Group";
+
+import * as yup from "yup"
 
 
 function getMessageQuery(match) {
@@ -36,6 +39,35 @@ function getMessageQuery(match) {
     ])
 }
 
+
+function getGroupQuery(match = {}) {
+    return Group.aggregate([
+        {$match: match},
+        {
+            $lookup: {
+                from: "users",
+                localField: "participants.userId",
+                foreignField: "_id",
+                as: "participants"
+            }
+        },
+        {
+            $project: {
+                name: 1,
+                type: 1,
+                _id: 1,
+                participants: {
+
+                    _id: 1,
+                    fullName: 1,
+                    avatar: 1
+
+                }
+            }
+        }
+    ])
+}
+
 export async function getMessages(req, res, next) {
     try {
         let messages = await Message.find({
@@ -52,65 +84,171 @@ export async function getMessages(req, res, next) {
 }
 
 
+export async function createGroup(req, res, next) {
+    try {
+        const {name, type, participants} = req.body
+
+        let schema = yup.object({
+            participants: yup.array().min(1, "Please provide members").of(yup.string()),
+            name: yup.string().max(100),
+            type: yup.string().oneOf(["private", "group", "public"])
+        })
+
+        await schema.validate({
+            name,
+            type,
+            participants
+        })
+
+        let payload = {
+            name,
+            type,
+            participants: participants.map(userId => ({userId: new ObjectId(userId)}))
+        }
+
+        payload.participants.push({userId: new ObjectId(req.user._id)})
+
+        await Group.updateOne({
+            ...payload
+        }, {
+            $set: payload
+        }, {
+            upsert: true
+        })
+
+        let groups = await getGroupQuery(payload)
+
+
+        res.status(201).json({group: groups[0]})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
 
 export async function getGroups(req, res, next) {
     try {
-        const {limit, pageSize} = req.query 
+        // const {limit, pageSize} = req.query
+        //
+        // const loggedUserId = new ObjectId(req.user._id)
+        //
+        // let limitInt = Number(limit ? limit : 10)
+        // if (isNaN(limitInt)) {
+        //     limitInt = 10
+        // }
 
-        const loggedUserId = new ObjectId(req.user._id)
-
-        let limitInt = Number(limit ? limit : 10) 
-        if (isNaN(limitInt)) {
-            limitInt = 10
-        }
-    
-        let messages = await Message.aggregate([  
-        {
-            $lookup: {
-              from: "users", // Replace "users" with the actual name of the collection storing user information
-              let: {
-                recipientId: "$recipientId",
-                senderId: "$senderId"
-              },
-              pipeline: [
-                {
-                  $match: {
-                    $expr: {
-                      $cond: {
-                        if: { $eq: ["$recipientId", loggedUserId] },
-                        then: { $eq: ["$_id", "$$senderId"] },
-                        else: { $eq: ["$_id", "$$recipientId"] }
-                      }
-                    }
-                  }
-                },
-                {
-                  $project: { _id: 1, senderId: 1, fullName: 1, avatar: 1 } // Include the fields you want to retrieve from the "users" collection
+        let groups = await getGroupQuery({
+            type: "private",
+            participants: {
+                $elemMatch: {
+                    userId: new ObjectId(req.user._id)
                 }
-              ],
-              as: "user"
             }
-          },
-          {
-            $group: {
-                _id: { "channelName": "$channelName" },
-                    'messages': { '$addToSet': '$$ROOT' }
-            }  
-        },
-        {
-            '$project': {
-                  _id: 0,
-                channelName: "$_id.channelName",
-                'messages': { '$slice': ['$messages', 1] } 
+        })
+
+        // console.log(groups)
+
+        res.status(200).json({groups: groups})
+
+
+        //     let messages = await Message.aggregate([
+        //     {
+        //         $lookup: {
+        //           from: "users", // Replace "users" with the actual name of the collection storing user information
+        //           let: {
+        //             recipientId: "$recipientId",
+        //             senderId: "$senderId"
+        //           },
+        //           pipeline: [
+        //             {
+        //               $match: {
+        //                 $expr: {
+        //                   $cond: {
+        //                     if: { $eq: ["$recipientId", loggedUserId] },
+        //                     then: { $eq: ["$_id", "$$senderId"] },
+        //                     else: { $eq: ["$_id", "$$recipientId"] }
+        //                   }
+        //                 }
+        //               }
+        //             },
+        //             {
+        //               $project: { _id: 1, senderId: 1, fullName: 1, avatar: 1 } // Include the fields you want to retrieve from the "users" collection
+        //             }
+        //           ],
+        //           as: "user"
+        //         }
+        //       },
+        //       {
+        //         $group: {
+        //             _id: { "channelName": "$channelName" },
+        //                 'messages': { '$addToSet': '$$ROOT' }
+        //         }
+        //     },
+        //     {
+        //         '$project': {
+        //               _id: 0,
+        //             channelName: "$_id.channelName",
+        //             'messages': { '$slice': ['$messages', 1] }
+        //         }
+        //     },
+        //     {
+        //         $limit: Number(limit)
+        //     }
+        // ])
+        //
+        //     // console.log(JSON.stringify(messages, undefined, 2))
+        //
+        //     res.status(200).json({messages: messages})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
+export async function getGroupMessages(req, res, next) {
+    let groupId = req.params.groupId
+    if (!groupId) return next("Please provide group id")
+
+    groupId = new ObjectId(groupId)
+
+    try {
+        let messages = await Message.aggregate([
+            {
+                $match: {
+                    groupId: groupId,
+
+                }
+            },
+            {
+                $lookup: {
+                    from: "group",
+                    localField: "groupId",
+                    foreignField: "_id",
+                    as: "group"
+                }
+            },
+            {
+                $unwind: {path: "$group"}
+            },
+            // verify logged has in this group
+            {
+                $match: {
+                    "group.participants": {
+                        $elemMatch: {
+                            userId: new ObjectId(req.user._id)
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    group: 0,
+                    groupId: 0,
+                }
             }
-        },
-        {
-            $limit: Number(limit)
-        }
-    ])
-
-        // console.log(JSON.stringify(messages, undefined, 2))
-
+        ])
         res.status(200).json({messages: messages})
 
     } catch (ex) {
@@ -119,16 +257,51 @@ export async function getGroups(req, res, next) {
 }
 
 
-export async function getChannelMessages(req, res, next) {
-    if (!req.params.channelName) return next("Please provide channel name")
+export async function getGroupsMessages(req, res, next) {
+
+    let authId = new ObjectId(req.user._id)
+
     try {
-        let messages = await Message.find({
-            channelName: req.params.channelName,
-            $or: [
-                {senderId: new ObjectId(req.user._id)},
-                {recipientId: new ObjectId(req.user._id)}
-            ]
-        })
+        let messages = await Group.aggregate([
+            {
+                $match: {
+                    participants: {
+                        $elemMatch: {
+                            userId: authId
+                        }
+                    },
+
+                }
+            },
+            {
+                $lookup: {
+                    from: "message",
+                    localField: "_id",
+                    foreignField: "groupId",
+                    as: "messages"
+                }
+            },
+            // {
+            //     $unwind: {path: "$group"}
+            // },
+            // // verify logged has in this group
+            // {
+            //     $match: {
+            //         "group.participants": {
+            //             $elemMatch: {
+            //                 userId: new ObjectId(req.user._id)
+            //             }
+            //         }
+            //     }
+            // },
+            // {
+            //     $project: {
+            //         group: 0,
+            //         groupId: 0,
+            //     }
+            // }
+        ])
+
         res.status(200).json({messages: messages})
 
     } catch (ex) {
@@ -137,31 +310,28 @@ export async function getChannelMessages(req, res, next) {
 }
 
 export async function sendMessage(req, res, next) {
-    const {message, channelName, recipientId} = req.body
-
+    const {message, groupId} = req.body
     try {
 
         let newMessage = new Message({
             message,
-            channelName: channelName,
-            recipientId: new ObjectId(recipientId),
+            groupId: new ObjectId(groupId),
             senderId: new ObjectId(req.user._id)
         })
 
 
         newMessage = await newMessage.save()
 
-        let messages = await getMessageQuery({
-            $match: {
-                _id: new ObjectId(newMessage._id)
-            }
-        })
-
+        // let messages = await getMessageQuery({
+        //     $match: {
+        //         _id: new ObjectId(newMessage._id)
+        //     }
+        // })
 
         // broadcast to friend
         // Trigger a 'message' event on the recipient's private channel
-        pusher.trigger(`private-chat-${recipientId}`, 'message', {
-            message: messages[0]
+        pusher.trigger(`private-chat-${groupId}`, 'message', {
+            message: newMessage
         }).then(a => {
         }).catch(ex => {
             console.log(ex)
