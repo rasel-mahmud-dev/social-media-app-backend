@@ -86,7 +86,7 @@ export const createNewUser = (req, res, next) => {
 export const updateProfile = (req, res, next) => {
 
     // parse a file upload
-    const form = formidable({multiples: false});
+    const form = formidable({multiples: true});
 
     form.parse(req, async (err, fields, files) => {
         if (err) return next("Can't read form data");
@@ -95,7 +95,8 @@ export const updateProfile = (req, res, next) => {
                 firstName,
                 lastName,
                 email,
-                avatar
+                avatar,
+                cover
             } = fields;
 
             let user = await User.findOne({_id: new ObjectId(req.user._id)});
@@ -103,23 +104,31 @@ export const updateProfile = (req, res, next) => {
                 return res.status(404).json({message: "Profile not found"});
             }
 
-            let avatarUrl = "";
+            let update = {}
+
+            if (firstName) update["firstName"] = firstName
+            if (lastName) update["lastName"] = lastName
+            if (email) update["email"] = email
+            if (avatar) update["avatar"] = avatar
+            if (cover) update["cover"] = cover
+
+
 
             if (files && files.avatar) {
                 let fileName = `${files.avatar.newFilename}-${files.avatar.originalFilename}`
                 let result = await imageKitUpload(files.avatar.filepath, fileName, "social-app")
                 if (result) {
-                    avatarUrl = result.url
+                    update["avatar"] = result.url
                 }
             }
 
-            let update = {}
-            if (firstName) update["firstName"] = firstName
-            if (lastName) update["lastName"] = lastName
-            if (email) update["email"] = email
-            if (avatar) update["avatar"] = avatar
-            if (avatarUrl) update["avatar"] = avatarUrl
-
+            if (files && files.cover) {
+                let fileName = `${files.cover.newFilename}-${files.cover.originalFilename}`
+                let result = await imageKitUpload(files.cover.filepath, fileName, "social-app")
+                if (result) {
+                    update["cover"] = result.url
+                }
+            }
 
             let result = await User.updateOne({
                 _id: new ObjectId(req.user._id)
