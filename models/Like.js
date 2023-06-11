@@ -5,6 +5,13 @@ class Like extends Base {
 
     // _id  => database uuid
 
+    static indexes = {
+        feedId: {},
+        userId: {},
+        reaction: {},
+    }
+
+
     constructor({
             feedId,
                     reaction = "like", // love, haha, sad

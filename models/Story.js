@@ -10,6 +10,12 @@ class Story extends Base {
 //     "url": "image_url_here"
 // },
 
+
+    static indexes = {
+        userId: {},
+        expiredAt: {},
+    }
+
     constructor({
                 media,
                 content,

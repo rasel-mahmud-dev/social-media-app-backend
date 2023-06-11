@@ -5,6 +5,12 @@ class Friend extends Base {
 
     // _id  => database uuid
 
+    static indexes = {
+        receiverId: {},
+        senderId: {},
+        status: {},
+    }
+
     constructor({
             receiverId,
             senderId,

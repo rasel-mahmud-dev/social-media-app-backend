@@ -6,6 +6,12 @@ class Saved extends Base {
 
     // _id  => database uuid
 
+    static indexes = {
+        feedId: {},
+        userId: {},
+    }
+
+
     constructor({
             feedId,
             userId // ref

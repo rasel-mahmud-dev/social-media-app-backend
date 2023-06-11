@@ -5,8 +5,13 @@ class Media extends Base {
 
     // _id  => database uuid
 
+    static indexes = {
+        userId: {}
+    }
+
+
     constructor({
-            type,
+            type, // image/video/audio
             url,
             userId, // ref
             feedId // ref

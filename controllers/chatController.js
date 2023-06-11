@@ -52,6 +52,73 @@ export async function getMessages(req, res, next) {
 }
 
 
+
+export async function getGroups(req, res, next) {
+    try {
+        const {limit, pageSize} = req.query 
+
+        const loggedUserId = new ObjectId(req.user._id)
+
+        let limitInt = Number(limit ? limit : 10) 
+        if (isNaN(limitInt)) {
+            limitInt = 10
+        }
+    
+        let messages = await Message.aggregate([  
+        {
+            $lookup: {
+              from: "users", // Replace "users" with the actual name of the collection storing user information
+              let: {
+                recipientId: "$recipientId",
+                senderId: "$senderId"
+              },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: {
+                      $cond: {
+                        if: { $eq: ["$recipientId", loggedUserId] },
+                        then: { $eq: ["$_id", "$$senderId"] },
+                        else: { $eq: ["$_id", "$$recipientId"] }
+                      }
+                    }
+                  }
+                },
+                {
+                  $project: { _id: 1, senderId: 1, fullName: 1, avatar: 1 } // Include the fields you want to retrieve from the "users" collection
+                }
+              ],
+              as: "user"
+            }
+          },
+          {
+            $group: {
+                _id: { "channelName": "$channelName" },
+                    'messages': { '$addToSet': '$$ROOT' }
+            }  
+        },
+        {
+            '$project': {
+                  _id: 0,
+                channelName: "$_id.channelName",
+                'messages': { '$slice': ['$messages', 1] } 
+            }
+        },
+        {
+            $limit: Number(limit)
+        }
+    ])
+
+        // console.log(JSON.stringify(messages, undefined, 2))
+
+        res.status(200).json({messages: messages})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
 export async function getChannelMessages(req, res, next) {
     if (!req.params.channelName) return next("Please provide channel name")
     try {

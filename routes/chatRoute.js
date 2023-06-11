@@ -1,4 +1,9 @@
-import {sendMessage, getMessages, getChannelMessages} from "../controllers/messageController";
+import {
+    sendMessage,
+    getMessages,
+    getChannelMessages,
+    getGroups
+} from "../controllers/chatController";
 import {auth} from "../middlewares";
 import formidable from "formidable";
 import pusher from "../pusher/pusher";
@@ -6,6 +11,9 @@ import pusher from "../pusher/pusher";
 const router = require("express").Router();
 
 router.get("/",  auth, getMessages);
+
+
+router.get("/groups",  auth, getGroups);
 
 // private or group message
 router.get("/:channelName",  auth, getChannelMessages);

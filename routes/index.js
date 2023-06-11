@@ -5,7 +5,7 @@ import userRoute from "./userRoute";
 import commentRoute from "./commentRoute";
 import savedRoute from "./savedRoute";
 import storyRoute from "./storyRoute";
-import messageRoute from "./messageRoute";
+import chatRoute from "./chatRoute";
 
 
 
@@ -21,7 +21,7 @@ router.use("/api/v1/users", userRoute)
 router.use("/api/v1/comments", commentRoute)
 router.use("/api/v1/saved", savedRoute)
 router.use("/api/v1/story", storyRoute)
-router.use("/api/v1/message", messageRoute)
+router.use("/api/v1/chat", chatRoute)
 
 export default router
 

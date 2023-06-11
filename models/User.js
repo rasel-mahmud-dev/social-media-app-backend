@@ -5,6 +5,12 @@ class User extends Base {
 
     // _id  => database uuid
 
+    static indexes = {
+        googleId: {},
+        email: {},
+        role: {},
+    }
+
     constructor({
                     firstName,
                     lastName,

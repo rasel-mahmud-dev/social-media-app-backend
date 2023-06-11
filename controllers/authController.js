@@ -9,6 +9,7 @@ import imageKitUpload from "../services/ImageKitUpload";
 import oauth2Client from "../services/googeAuth";
 import {google} from "googleapis";
 import Profile from "../models/Profile";
+import Media from "../models/Media";
 
 const formidable = require("formidable");
 
@@ -64,7 +65,8 @@ export const createNewUser = (req, res, next) => {
                 dateOfBrith: birthDay
             }, {
                 upsert: true
-            }).catch(ex=>{})
+            }).catch(ex => {
+            })
 
             let token = await createToken(authUser._id, authUser.email, authUser.role);
 
@@ -105,13 +107,14 @@ export const updateProfile = (req, res, next) => {
             }
 
             let update = {}
+            let errorMessage = ""
 
             if (firstName) update["firstName"] = firstName
             if (lastName) update["lastName"] = lastName
             if (email) update["email"] = email
             if (avatar) update["avatar"] = avatar
             if (cover) update["cover"] = cover
-
+            const newPhotos = []
 
 
             if (files && files.avatar) {
@@ -119,6 +122,9 @@ export const updateProfile = (req, res, next) => {
                 let result = await imageKitUpload(files.avatar.filepath, fileName, "social-app")
                 if (result) {
                     update["avatar"] = result.url
+                    newPhotos.push(result.url)
+                } else {
+                    errorMessage = "Avatar upload fail"
                 }
             }
 
@@ -127,7 +133,14 @@ export const updateProfile = (req, res, next) => {
                 let result = await imageKitUpload(files.cover.filepath, fileName, "social-app")
                 if (result) {
                     update["cover"] = result.url
+                    newPhotos.push(result.url)
+                } else {
+                    errorMessage = "Cover Image upload fail"
                 }
+            }
+
+            if (errorMessage) {
+                return next(errorMessage)
             }
 
             let result = await User.updateOne({
@@ -135,6 +148,16 @@ export const updateProfile = (req, res, next) => {
             }, {
                 $set: update
             })
+
+            if (newPhotos.length > 0) {
+                Media.insertMany(newPhotos.map(img => ({
+                    type: "image/jpg",
+                    url: img,
+                    userId: new ObjectId(req.user._id),
+                    feedId: null
+                }))).catch(ex => {
+                })
+            }
 
             res.status(201).json({user: update});
 
@@ -217,7 +240,7 @@ export const loginWithGoogle = async (req, res, next) => {
 
         let token = await createToken(user._id, user.email, user.role)
         // res.status(201).json({token, user: user});
-        res.redirect(process.env.FRONTEND + "/join?token="+ token)
+        res.redirect(process.env.FRONTEND + "/join?token=" + token)
     } catch (ex) {
         next(ex);
     }

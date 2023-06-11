@@ -4,6 +4,8 @@ import morgan from "morgan"
 require("dotenv").config()
 
 import routes  from "./routes"
+import indexesCollections from "./models/indexesCollections";
+
 
 
 const port = process.env.PORT || 1000;
@@ -63,4 +65,9 @@ app.use((req,res,next) => {
 
 app.listen(port, "0.0.0.0", ()=>{
   console.log(`Server started and running on http://localhost:${port}`)
+
+
+    // indexes mongodb
+    indexesCollections()
+
 })

@@ -6,6 +6,11 @@ class Profile extends Base {
 
     // _id  => database uuid
 
+    static indexes = {
+        userId: {},
+    }
+
+
     constructor({
                 userId,
                 gender,

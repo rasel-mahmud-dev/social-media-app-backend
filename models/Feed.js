@@ -5,6 +5,11 @@ class Feed extends Base {
 
     // _id  => database uuid
 
+    static indexes = {
+        userId: {},
+        // userId: {},
+    }
+
     constructor({
         content,
         images = [],
