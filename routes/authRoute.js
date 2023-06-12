@@ -7,6 +7,8 @@ import {
 } from "../controllers/authController";
 import {auth} from "../middlewares";
 import  {authUrl} from "../services/googeAuth";
+import formidable from "formidable";
+import pusher from "../pusher/pusher";
 
 
 
@@ -25,6 +27,20 @@ router.get('/google', (req, res) => {
 
 // Handle the callback from Google after authentication
 router.get('/callback/google', loginWithGoogle);
+
+
+
+// pusher authorization for private message.
+router.post("/pusher/auth", (req, res) => {
+    let form = formidable()
+    form.parse(req, (err, fields)=>{
+        const socketId = fields.socket_id;
+        const channel = fields.channel_name;
+        // This authenticates every user. Don't do this in production!
+        const authResponse = pusher.authorizeChannel(socketId, channel);
+        res.send(authResponse);
+    })
+});
 
 
 export default router

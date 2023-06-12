@@ -327,14 +327,14 @@ export async function sendMessage(req, res, next) {
         //         _id: new ObjectId(newMessage._id)
         //     }
         // })
-
         // broadcast to friend
         // Trigger a 'message' event on the recipient's private channel
         pusher.trigger(`private-chat-${groupId}`, 'message', {
             message: newMessage
         }).then(a => {
+            console.log(a)
         }).catch(ex => {
-            console.log(ex)
+            console.log(ex.message)
         })
 
         res.status(201).json({message: newMessage})
