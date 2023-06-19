@@ -83,7 +83,7 @@ export async function getMessages(req, res, next) {
     }
 }
 
-
+// create chat group
 export async function createGroup(req, res, next) {
     try {
         const {name, type, participants} = req.body
@@ -108,6 +108,11 @@ export async function createGroup(req, res, next) {
 
         payload.participants.push({userId: new ObjectId(req.user._id)})
 
+        if (payload.participants.length < 2) {
+            return next("Group creation fail")
+        }
+
+        // create group if there are not exist this group
         await Group.updateOne({
             ...payload
         }, {
@@ -117,8 +122,6 @@ export async function createGroup(req, res, next) {
         })
 
         let groups = await getGroupQuery(payload)
-
-
         res.status(201).json({group: groups[0]})
 
     } catch (ex) {
@@ -207,9 +210,64 @@ export async function getGroups(req, res, next) {
 }
 
 
+export async function getGroupDetail(req, res, next) {
+    try {
+
+        const {groupId} = req.params
+
+        if (!groupId) return next("Please provide group id")
+
+        let groups = await getGroupQuery({
+            type: "private",
+            _id: new ObjectId(groupId),
+            participants: {
+                $elemMatch: {
+                    userId: new ObjectId(req.user._id)
+                }
+            }
+        })
+        if (groups.length > 0) {
+            res.status(200).json({group: groups[0]})
+        } else {
+            next("Group not found")
+        }
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
+// get group message for detail chat like messenger or quick popup chat.
 export async function getGroupMessages(req, res, next) {
-    let groupId = req.params.groupId
+    // let groupId = req.params.groupId
+    let {
+        groupId,
+        perPage = 10,
+        pageNumber = 1,
+        orderBy = "createdAt",
+        orderDirection = "desc"
+    } = req.query
     if (!groupId) return next("Please provide group id")
+
+    if (perPage && perPage > 20) {
+        perPage = 20
+    }
+
+    perPage = Number(perPage)
+
+    if (isNaN(perPage)) {
+        perPage = 20
+    }
+
+    pageNumber = Number(pageNumber)
+    if (isNaN(pageNumber)) {
+        pageNumber = 1
+    }
+
+    if (pageNumber <= 0) {
+        pageNumber = 1
+    }
+
 
     groupId = new ObjectId(groupId)
 
@@ -247,6 +305,12 @@ export async function getGroupMessages(req, res, next) {
                     group: 0,
                     groupId: 0,
                 }
+            },
+            {
+                $skip: perPage * (pageNumber - 1)
+            },
+            {
+                $limit: perPage * pageNumber
             }
         ])
         res.status(200).json({messages: messages})
@@ -308,6 +372,59 @@ export async function getGroupsMessages(req, res, next) {
         next(ex)
     }
 }
+
+
+// export async function getGroupMessages(req, res, next) {
+//     let authId = new ObjectId(req.user._id)
+//
+//     try {
+//         let messages = await Group.aggregate([
+//             {
+//                 $match: {
+//                     participants: {
+//                         $elemMatch: {
+//                             userId: authId
+//                         }
+//                     },
+//
+//                 }
+//             },
+//             {
+//                 $lookup: {
+//                     from: "message",
+//                     localField: "_id",
+//                     foreignField: "groupId",
+//                     as: "messages"
+//                 }
+//             },
+//             // {
+//             //     $unwind: {path: "$group"}
+//             // },
+//             // // verify logged has in this group
+//             // {
+//             //     $match: {
+//             //         "group.participants": {
+//             //             $elemMatch: {
+//             //                 userId: new ObjectId(req.user._id)
+//             //             }
+//             //         }
+//             //     }
+//             // },
+//             // {
+//             //     $project: {
+//             //         group: 0,
+//             //         groupId: 0,
+//             //     }
+//             // }
+//         ])
+//
+//         res.status(200).json({messages: messages})
+//
+//     } catch (ex) {
+//         next(ex)
+//     }
+// }
+
 
 export async function sendMessage(req, res, next) {
     const {message, groupId} = req.body

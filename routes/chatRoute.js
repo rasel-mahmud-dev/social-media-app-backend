@@ -3,8 +3,10 @@ import {
     getMessages,
     getGroupMessages,
     getGroupsMessages,
-    getGroups, createGroup
+    getGroups, createGroup, getGroupDetail
 } from "../controllers/chatController";
+
+
 import {auth} from "../middlewares";
 import formidable from "formidable";
 import pusher from "../pusher/pusher";
@@ -19,7 +21,14 @@ router.get("/",  auth, getMessages);
 router.get("/groups/messages",  auth, getGroupsMessages);
 
 
+
+// get group message for detail chat like messenger or quick popup chat.
+router.get("/group/messages",  auth, getGroupMessages);
+
+
 router.get("/groups",  auth, getGroups);
+
+router.get("/group/:groupId",  auth, getGroupDetail);
 
 
 router.post("/group",  auth, createGroup);
