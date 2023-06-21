@@ -1,5 +1,5 @@
 import {ObjectId} from "mongodb";
-import Feed from './../models/Feed';
+import Feed from '../models/Feed';
 import Like from "../models/Like";
 import pusher from "../pusher/pusher";
 import Comment from "../models/Comment";
@@ -55,6 +55,7 @@ export function getFeedQuery(query = {}) {
     ])
 }
 
+
 // get all feeds
 export const getFeeds = async (req, res, next) => {
     try {
@@ -65,7 +66,47 @@ export const getFeeds = async (req, res, next) => {
                 userId: new ObjectId(userId)
             })
         } else {
-            feeds = await getFeedQuery()
+            feeds = await Feed.aggregate([
+                {
+                    $lookup: {
+                        from: "friend",
+                        let: { userId: "$userId" }, // feed collection ar localfield
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$fiendId", "$$userId"] },
+                                            { $eq: ["$receiverId", "$$userId"] }
+                                        ],
+                                        $eq: ["$status", "accepted"],
+                                    }
+                                }
+                            }
+                        ],
+                        as: "friend"
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "follow",
+                        let: { userId: "$userId" }, // feed collection ar localfield
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $or: [
+                                            { $eq: ["$following", "$$userId"] },
+                                            { $eq: ["$follower", "$$userId"] }
+                                        ]
+                                    }
+                                }
+                            }
+                        ],
+                        as: "followedUser"
+                    }
+                }
+            ])
         }
 
         res.status(200).json(feeds);

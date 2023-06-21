@@ -1,5 +1,5 @@
 import {ObjectId} from "mongodb";
-import Comment from './../models/Comment';
+import Comment from '../models/Comment';
 import pusher from "../pusher/pusher";
 
 function getCommentQuery(match) {
