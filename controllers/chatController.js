@@ -214,7 +214,6 @@ export async function getGroupDetail(req, res, next) {
     try {
 
         const {groupId} = req.params
-
         if (!groupId) return next("Please provide group id")
 
         let groups = await getGroupQuery({
