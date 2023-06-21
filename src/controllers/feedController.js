@@ -70,16 +70,21 @@ export const getFeeds = async (req, res, next) => {
                 {
                     $lookup: {
                         from: "friend",
-                        let: { userId: "$userId" }, // feed collection ar localfield
+                        let: {userId: new ObjectId(req.user._id)}, // feed collection ar localfield
                         pipeline: [
                             {
                                 $match: {
                                     $expr: {
-                                        $or: [
-                                            { $eq: ["$fiendId", "$$userId"] },
-                                            { $eq: ["$receiverId", "$$userId"] }
-                                        ],
-                                        $eq: ["$status", "accepted"],
+                                        $and: [
+                                            {
+                                                $or: [
+                                                    {$eq: ["$senderId", "$$userId"]},
+                                                    {$eq: ["$receiverId", "$$userId"]}
+                                                ],
+                                            },
+                                            {$eq: ["$status", "accepted"]}
+                                        ]
+
                                     }
                                 }
                             }
@@ -90,14 +95,14 @@ export const getFeeds = async (req, res, next) => {
                 {
                     $lookup: {
                         from: "follow",
-                        let: { userId: "$userId" }, // feed collection ar localfield
+                        let: {userId: "$userId"}, // feed collection ar localfield
                         pipeline: [
                             {
                                 $match: {
                                     $expr: {
                                         $or: [
-                                            { $eq: ["$following", "$$userId"] },
-                                            { $eq: ["$follower", "$$userId"] }
+                                            {$eq: ["$following", "$$userId"]},
+                                            {$eq: ["$follower", "$$userId"]}
                                         ]
                                     }
                                 }
@@ -105,10 +110,60 @@ export const getFeeds = async (req, res, next) => {
                         ],
                         as: "followedUser"
                     }
+                },
+                {
+                    $match: {
+                        $or: [
+                            {"userId": userId},
+                            {"friend.senderId": {$exists: true}},
+                            {"friend.receiverId": {$exists: true}},
+                            {"followedUser.follower": {$exists: true}},
+                            {"followedUser.following": {$exists: true}}
+                        ]
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "userId",
+                        foreignField: "_id",
+                        as: "author"
+                    }
+                },
+                {
+                    $unwind: {path: "$author"}
+                },
+                {
+                    $lookup: {
+                        from: "like",
+                        localField: "_id",
+                        foreignField: "feedId",
+                        as: "likes"
+                    }
+                },
+                {
+                    $sort: {
+                        createdAt: -1
+                    }
+                },
+                {
+                    $project: {
+                        author: {
+                            password: 0,
+                            role: 0,
+                            createdAt: 0,
+                            updatedAt: 0,
+                            email: 0,
+                        },
+                        likes: {
+                            "feedId": 0,
+                            "createdAt": 0,
+                            "updatedAt": 0
+                        }
+                    }
                 }
             ])
         }
-
         res.status(200).json(feeds);
     } catch (ex) {
         next(ex);
@@ -150,14 +205,14 @@ export const createFeed = (req, res, next) => {
             if (files && files.image && Array.isArray(files.image)) {
                 incomingFiles = files.image
 
-            } else if(typeof files.image === "object") {
+            } else if (typeof files.image === "object") {
                 incomingFiles = [files.image]
             }
 
             let fileUploadPromises = []
             let uploadFail = incomingFiles.length !== 0
 
-            if(incomingFiles && Array.isArray(incomingFiles)){
+            if (incomingFiles && Array.isArray(incomingFiles)) {
                 incomingFiles.forEach(image => {
                     let name = image.newFilename + "-" + image.originalFilename
                     fileUploadPromises.push(imageKitUpload(image.filepath, name, "social-app"))
@@ -173,7 +228,7 @@ export const createFeed = (req, res, next) => {
                 })
             }
 
-            if(uploadFail) return next("Post image upload fail.")
+            if (uploadFail) return next("Post image upload fail.")
 
             let feed = new Feed({
                 content,
@@ -189,8 +244,8 @@ export const createFeed = (req, res, next) => {
                     _id: new ObjectId(feed._id)
                 })
 
-                if(images.length >0) {
-                    let allMedia = images.map(img=>(
+                if (images.length > 0) {
+                    let allMedia = images.map(img => (
                         {
                             feedId: newFeedId,
                             userId: new ObjectId(req.user._id),
@@ -199,12 +254,11 @@ export const createFeed = (req, res, next) => {
                         }
                     ))
 
-                    Media.insertMany(allMedia).catch(ex=>{
+                    Media.insertMany(allMedia).catch(ex => {
                         console.log("media save fail")
                     })
 
                 }
-
 
 
                 pusher.trigger("public-channel", "new-feed", {
