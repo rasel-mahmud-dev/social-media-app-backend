@@ -1,6 +1,8 @@
 import Base from "./Base";
 
 import User from "./User"
+import Membership from "./Membership"
+import Group from "./Group"
 import Room from "./Room"
 import Message from "./Message"
 import Feed from "./Feed"
@@ -12,7 +14,7 @@ import Story from "./Story";
 import Saved from "./Saved";
 import Profile from "./Profile";
 
-function indexesCollections(){
+function indexesCollections() {
     Base.initialMongodbIndexes([
         User,
         Room,
@@ -24,7 +26,10 @@ function indexesCollections(){
         Friend,
         Story,
         Saved,
-        Profile
+        Profile,
+        Membership,
+        Group
     ])
 }
+
 export default indexesCollections
