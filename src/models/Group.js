@@ -2,26 +2,38 @@ import Base from "./Base";
 
 class Group extends Base {
 
-    static collectionName = "group";
+    static collectionName = "groups";
 
-    // _id  => Unique identifier for the conversation like roomName.
+    // _id  => Unique identifier for the group id
 
     static indexes = {
-        participants: {}
+        ownerId: {}
     }
+
+    name = ""
+    coverPhoto = ""
+    description = ""
+    privacySetting = {}
+    createdAt = new Date()
+    ownerId = null
+    totalMember = 1
+    tags = []
+    isVerified = false
+    isPublic = true
 
     constructor(data){
         super(Group.collectionName)
         this.name = data.name
-        this.type = data.type || "private" // group
-        this.participants = data.participants
+        this.coverPhoto = data.coverPhoto
+        this.description = data.description
+        this.privacySetting = data.privacySetting
+        this.ownerId = data.ownerId
+        this.createdAt = new Date()
+        this.tags = data.tags
+        this.isVerified = data.isVerified
+        this.isPublic = data.isPublic
     }
 }
-
-
-// name: Name of the conversation (for group chats).
-// type: Type of conversation (e.g., private, group).
-// participants: Array of user references representing participants in the conversation.
 
 
 export default Group

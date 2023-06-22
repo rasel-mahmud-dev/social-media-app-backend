@@ -14,7 +14,7 @@ class Message extends Base {
                     senderId,
                     // recipientId,
                     message,
-                    groupId,
+                    roomId,
                     // channelName,
 
                 }) {
@@ -22,7 +22,7 @@ class Message extends Base {
         this.senderId = senderId
         // this.recipientId = recipientId
         // this.channelName = channelName
-        this.groupId = groupId
+        this.roomId = roomId
         this.message = message
         this.createdAt = new Date();
         this.updatedAt = new Date();

@@ -1,7 +1,7 @@
 import Message from "../models/Message";
 import {ObjectId} from "mongodb";
 import pusher from "../pusher/pusher";
-import Group from "../models/Group";
+import Room from "../models/Room";
 
 import * as yup from "yup"
 
@@ -40,8 +40,8 @@ function getMessageQuery(match) {
 }
 
 
-function getGroupQuery(match = {}) {
-    return Group.aggregate([
+function getRoomQuery(match = {}) {
+    return Room.aggregate([
         {$match: match},
         {
             $lookup: {
@@ -57,11 +57,9 @@ function getGroupQuery(match = {}) {
                 type: 1,
                 _id: 1,
                 participants: {
-
                     _id: 1,
                     fullName: 1,
                     avatar: 1
-
                 }
             }
         }
@@ -83,15 +81,15 @@ export async function getMessages(req, res, next) {
     }
 }
 
-// create chat group
-export async function createGroup(req, res, next) {
+// create chat room
+export async function createRoom(req, res, next) {
     try {
         const {name, type, participants} = req.body
 
         let schema = yup.object({
             participants: yup.array().min(1, "Please provide members").of(yup.string()),
             name: yup.string().max(100),
-            type: yup.string().oneOf(["private", "group", "public"])
+            type: yup.string().oneOf(["private", "room", "public"])
         })
 
         await schema.validate({
@@ -109,11 +107,11 @@ export async function createGroup(req, res, next) {
         payload.participants.push({userId: new ObjectId(req.user._id)})
 
         if (payload.participants.length < 2) {
-            return next("Group creation fail")
+            return next("Room creation fail")
         }
 
-        // create group if there are not exist this group
-        await Group.updateOne({
+        // create a room if there are not exist this room
+        await Room.updateOne({
             ...payload
         }, {
             $set: payload
@@ -121,8 +119,8 @@ export async function createGroup(req, res, next) {
             upsert: true
         })
 
-        let groups = await getGroupQuery(payload)
-        res.status(201).json({group: groups[0]})
+        let rooms = await getRoomQuery(payload)
+        res.status(201).json({room: rooms[0]})
 
     } catch (ex) {
         next(ex)
@@ -130,7 +128,7 @@ export async function createGroup(req, res, next) {
 }
 
 
-export async function getGroups(req, res, next) {
+export async function getRooms(req, res, next) {
     try {
         // const {limit, pageSize} = req.query
         //
@@ -141,7 +139,7 @@ export async function getGroups(req, res, next) {
         //     limitInt = 10
         // }
 
-        let groups = await getGroupQuery({
+        let rooms = await getRoomQuery({
             type: "private",
             participants: {
                 $elemMatch: {
@@ -150,9 +148,9 @@ export async function getGroups(req, res, next) {
             }
         })
 
-        // console.log(groups)
+        // console.log(rooms)
 
-        res.status(200).json({groups: groups})
+        res.status(200).json({rooms: rooms})
 
 
         //     let messages = await Message.aggregate([
@@ -183,7 +181,7 @@ export async function getGroups(req, res, next) {
         //         }
         //       },
         //       {
-        //         $group: {
+        //         $room: {
         //             _id: { "channelName": "$channelName" },
         //                 'messages': { '$addToSet': '$$ROOT' }
         //         }
@@ -210,25 +208,25 @@ export async function getGroups(req, res, next) {
 }
 
 
-export async function getGroupDetail(req, res, next) {
+export async function getRoomDetail(req, res, next) {
     try {
 
-        const {groupId} = req.params
-        if (!groupId) return next("Please provide group id")
+        const {roomId} = req.params
+        if (!roomId) return next("Please provide room id")
 
-        let groups = await getGroupQuery({
+        let rooms = await getRoomQuery({
             type: "private",
-            _id: new ObjectId(groupId),
+            _id: new ObjectId(roomId),
             participants: {
                 $elemMatch: {
                     userId: new ObjectId(req.user._id)
                 }
             }
         })
-        if (groups.length > 0) {
-            res.status(200).json({group: groups[0]})
+        if (rooms.length > 0) {
+            res.status(200).json({room: rooms[0]})
         } else {
-            next("Group not found")
+            next("Room not found")
         }
     } catch (ex) {
         next(ex)
@@ -236,17 +234,17 @@ export async function getGroupDetail(req, res, next) {
 }
 
 
-// get group message for detail chat like messenger or quick popup chat.
-export async function getGroupMessages(req, res, next) {
-    // let groupId = req.params.groupId
+// get room message for detail chat like messenger or quick popup chat.
+export async function getRoomMessages(req, res, next) {
+    // let roomId = req.params.roomId
     let {
-        groupId,
+        roomId,
         perPage = 10,
         pageNumber = 1,
         orderBy = "createdAt",
         orderDirection = "desc"
     } = req.query
-    if (!groupId) return next("Please provide group id")
+    if (!roomId) return next("Please provide room id")
 
     if (perPage && perPage > 20) {
         perPage = 20
@@ -268,31 +266,31 @@ export async function getGroupMessages(req, res, next) {
     }
 
 
-    groupId = new ObjectId(groupId)
+    roomId = new ObjectId(roomId)
 
     try {
         let messages = await Message.aggregate([
             {
                 $match: {
-                    groupId: groupId,
+                    roomId: roomId,
 
                 }
             },
             {
                 $lookup: {
-                    from: "group",
-                    localField: "groupId",
+                    from: "room",
+                    localField: "roomId",
                     foreignField: "_id",
-                    as: "group"
+                    as: "room"
                 }
             },
             {
-                $unwind: {path: "$group"}
+                $unwind: {path: "$room"}
             },
-            // verify logged has in this group
+            // verify logged has in this room
             {
                 $match: {
-                    "group.participants": {
+                    "room.participants": {
                         $elemMatch: {
                             userId: new ObjectId(req.user._id)
                         }
@@ -301,8 +299,8 @@ export async function getGroupMessages(req, res, next) {
             },
             {
                 $project: {
-                    group: 0,
-                    groupId: 0,
+                    room: 0,
+                    roomId: 0,
                 }
             },
             {
@@ -320,12 +318,12 @@ export async function getGroupMessages(req, res, next) {
 }
 
 
-export async function getGroupsMessages(req, res, next) {
+export async function getRoomsMessages(req, res, next) {
 
     let authId = new ObjectId(req.user._id)
 
     try {
-        let messages = await Group.aggregate([
+        let messages = await Room.aggregate([
             {
                 $match: {
                     participants: {
@@ -340,17 +338,17 @@ export async function getGroupsMessages(req, res, next) {
                 $lookup: {
                     from: "message",
                     localField: "_id",
-                    foreignField: "groupId",
+                    foreignField: "roomId",
                     as: "messages"
                 }
             },
             // {
-            //     $unwind: {path: "$group"}
+            //     $unwind: {path: "$room"}
             // },
-            // // verify logged has in this group
+            // // verify logged has in this room
             // {
             //     $match: {
-            //         "group.participants": {
+            //         "room.participants": {
             //             $elemMatch: {
             //                 userId: new ObjectId(req.user._id)
             //             }
@@ -359,8 +357,8 @@ export async function getGroupsMessages(req, res, next) {
             // },
             // {
             //     $project: {
-            //         group: 0,
-            //         groupId: 0,
+            //         room: 0,
+            //         roomId: 0,
             //     }
             // }
         ])
@@ -373,11 +371,11 @@ export async function getGroupsMessages(req, res, next) {
 }
 
 
-// export async function getGroupMessages(req, res, next) {
+// export async function getRoomMessages(req, res, next) {
 //     let authId = new ObjectId(req.user._id)
 //
 //     try {
-//         let messages = await Group.aggregate([
+//         let messages = await Room.aggregate([
 //             {
 //                 $match: {
 //                     participants: {
@@ -392,17 +390,17 @@ export async function getGroupsMessages(req, res, next) {
 //                 $lookup: {
 //                     from: "message",
 //                     localField: "_id",
-//                     foreignField: "groupId",
+//                     foreignField: "roomId",
 //                     as: "messages"
 //                 }
 //             },
 //             // {
-//             //     $unwind: {path: "$group"}
+//             //     $unwind: {path: "$room"}
 //             // },
-//             // // verify logged has in this group
+//             // // verify logged has in this room
 //             // {
 //             //     $match: {
-//             //         "group.participants": {
+//             //         "room.participants": {
 //             //             $elemMatch: {
 //             //                 userId: new ObjectId(req.user._id)
 //             //             }
@@ -411,8 +409,8 @@ export async function getGroupsMessages(req, res, next) {
 //             // },
 //             // {
 //             //     $project: {
-//             //         group: 0,
-//             //         groupId: 0,
+//             //         room: 0,
+//             //         roomId: 0,
 //             //     }
 //             // }
 //         ])
@@ -426,12 +424,12 @@ export async function getGroupsMessages(req, res, next) {
 
 
 export async function sendMessage(req, res, next) {
-    const {message, groupId} = req.body
+    const {message, roomId} = req.body
     try {
 
         let newMessage = new Message({
             message,
-            groupId: new ObjectId(groupId),
+            roomId: new ObjectId(roomId),
             senderId: new ObjectId(req.user._id)
         })
 
@@ -445,7 +443,7 @@ export async function sendMessage(req, res, next) {
         // })
         // broadcast to friend
         // Trigger a 'message' event on the recipient's private channel
-        pusher.trigger(`private-chat-${groupId}`, 'message', {
+        pusher.trigger(`private-chat-${roomId}`, 'message', {
             message: newMessage
         }).then(a => {
             console.log(a)

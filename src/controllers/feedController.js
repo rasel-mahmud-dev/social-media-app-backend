@@ -59,7 +59,16 @@ export function getFeedQuery(query = {}) {
 // get all feeds
 export const getFeeds = async (req, res, next) => {
     try {
-        const {userId} = req.query
+        let {userId, pageNumber = "1"} = req.query
+
+        const limit = 2;
+
+        pageNumber = Number(pageNumber)
+        if(isNaN(pageNumber)){
+            pageNumber = 1
+        }
+
+
         let feeds = []
         if (userId) {
             feeds = await getFeedQuery({
@@ -142,10 +151,51 @@ export const getFeeds = async (req, res, next) => {
                     }
                 },
                 {
+                    $lookup: {
+                        from: "comment",
+                        localField: "_id",
+                        foreignField: "feedId",
+                        as: "comments"
+                    }
+                },
+                {
+                    $addFields: {
+                        totalComment: {
+                            $size: "$comments"
+                        }
+                    },
+                },
+                {
+                    $unwind: "$comments" // Unwind the "comments" array
+                },
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "comments.userId",
+                        foreignField: "_id",
+                        as: "comments.author"
+                    }
+                },
+                {
+                    $unwind: {path: "$comments.author"}
+                },
+                {
                     $sort: {
                         createdAt: -1
                     }
                 },
+                {
+                    $skip: limit * (pageNumber - 1)
+                },
+                {
+                    $limit: limit
+                },
+                // {
+                //     $group: {
+                //         _id: null,
+                //         comment: { $first: "$comments" } // Get the first comment
+                //     }
+                // },
                 {
                     $project: {
                         author: {
@@ -159,7 +209,8 @@ export const getFeeds = async (req, res, next) => {
                             "feedId": 0,
                             "createdAt": 0,
                             "updatedAt": 0
-                        }
+                        },
+                        // comment: { $slice: ["$comments", 1] }
                     }
                 }
             ])

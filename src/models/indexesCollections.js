@@ -1,7 +1,7 @@
 import Base from "./Base";
 
 import User from "./User"
-import Group from "./Group"
+import Room from "./Room"
 import Message from "./Message"
 import Feed from "./Feed"
 import Media from "./Media"
@@ -15,7 +15,7 @@ import Profile from "./Profile";
 function indexesCollections(){
     Base.initialMongodbIndexes([
         User,
-        Group,
+        Room,
         Message,
         Feed,
         Media,
