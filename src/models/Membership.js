@@ -10,10 +10,7 @@ class Membership extends Base {
         userId: {}
     }
 
-    name = ""
-    description = ""
-    privacySetting = {}
-    createdAt = new Date()
+    joinedAt = new Date()
     userId = null
     role = "user" // // user || admin || moderator
     isActive = true
@@ -24,7 +21,6 @@ class Membership extends Base {
         this.userId = data.userId
         this.groupId = data.groupId
         this.role = data.role
-        this.createdAt = new Date()
     }
 }
 

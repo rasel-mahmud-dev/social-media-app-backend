@@ -1,12 +1,13 @@
-import Message from "../models/Message";
 import {ObjectId} from "mongodb";
-import pusher from "../pusher/pusher";
 import Room from "../models/Room";
 
 import * as yup from "yup"
 import formidable from "formidable";
 import Group from "src/models/Group";
 import imageKitUpload from "src/services/ImageKitUpload";
+import jsonParse from "src/utils/jsonParse";
+import Membership from "src/models/Membership";
+import Invitation from "src/models/Invitation";
 
 
 function getRoomQuery(match = {}) {
@@ -35,15 +36,12 @@ function getRoomQuery(match = {}) {
     ])
 }
 
-export async function getMessages(req, res, next) {
+export async function getMyGroups(req, res, next) {
     try {
-        let messages = await Message.find({
-            $or: [
-                {senderId: new ObjectId(req.user._id)},
-                {recipientId: new ObjectId(req.user._id)}
-            ]
+        let groups = await Group.find({
+            ownerId: new ObjectId(req.user._id),
         })
-        res.status(200).json({messages: messages})
+        res.status(200).json({groups: groups})
 
     } catch (ex) {
         next(ex)
@@ -55,7 +53,7 @@ export async function createGroup(req, res, next) {
     const form = formidable({multiple: false})
     form.parse(req, async function (err, fields, files) {
         try {
-            const {name, description, isPublic = "1", _id = ""} = fields
+            const {name, description, isPublic = "1", _id = "", members = "[]"} = fields
 
             let schema = yup.object({
                 name: yup.string().required().max(100),
@@ -75,6 +73,8 @@ export async function createGroup(req, res, next) {
                 ownerId: new ObjectId(req.user._id),
                 description,
                 isPublic: isPublic === "1",
+                coverPhoto: "",
+                createdAt: new Date()
             }
 
             if (files?.coverPhoto) {
@@ -89,21 +89,46 @@ export async function createGroup(req, res, next) {
                 }
             }
 
+
             // create a room if there are not exist this room
             let result = await Group.updateOne({
                 ownerId: payload.ownerId,
                 _id: _id ? new ObjectId(_id) : new ObjectId()
             }, {
-                $set: {
-                    ...payload,
-                    createdAt: new Date()
-                }
+                $set: payload
             }, {
                 upsert: true
             })
 
-            if (result.upsertedId || result.matchedCount) {
+            if (result.upsertedId) {
+                let membersArray = [
+                    {
+                        groupId: new ObjectId(result.upsertedId),
+                        joinedAt: new Date(),
+                        role: "admin",
+                        userId: new ObjectId(req.user._id)
+                    }
+                ]
+
+                if (members) {
+                    let mArray = await jsonParse(members)
+                    if (mArray && Array.isArray(mArray)) {
+                        mArray.forEach(userId => {
+                            membersArray.push({
+                                groupId: new ObjectId(result.upsertedId),
+                                joinedAt: new Date(),
+                                role: "user",
+                                userId: new ObjectId(userId)
+                            })
+                        })
+                    }
+                }
+
+                await Membership.insertMany(membersArray)
+
                 res.status(201).json({message: "group has been created."})
+            } else {
+                res.status(500).json({message: "group Create fail."})
             }
 
         } catch (ex) {
@@ -113,105 +138,83 @@ export async function createGroup(req, res, next) {
 }
 
 
-export async function getRooms(req, res, next) {
-    try {
-        // const {limit, pageSize} = req.query
-        //
-        // const loggedUserId = new ObjectId(req.user._id)
-        //
-        // let limitInt = Number(limit ? limit : 10)
-        // if (isNaN(limitInt)) {
-        //     limitInt = 10
-        // }
-
-        let rooms = await getRoomQuery({
-            type: "private",
-            participants: {
-                $elemMatch: {
-                    userId: new ObjectId(req.user._id)
-                }
-            }
-        })
-
-        // console.log(rooms)
-
-        res.status(200).json({rooms: rooms})
-
-
-        //     let messages = await Message.aggregate([
-        //     {
-        //         $lookup: {
-        //           from: "users", // Replace "users" with the actual name of the collection storing user information
-        //           let: {
-        //             recipientId: "$recipientId",
-        //             senderId: "$senderId"
-        //           },
-        //           pipeline: [
-        //             {
-        //               $match: {
-        //                 $expr: {
-        //                   $cond: {
-        //                     if: { $eq: ["$recipientId", loggedUserId] },
-        //                     then: { $eq: ["$_id", "$$senderId"] },
-        //                     else: { $eq: ["$_id", "$$recipientId"] }
-        //                   }
-        //                 }
-        //               }
-        //             },
-        //             {
-        //               $project: { _id: 1, senderId: 1, fullName: 1, avatar: 1 } // Include the fields you want to retrieve from the "users" collection
-        //             }
-        //           ],
-        //           as: "user"
-        //         }
-        //       },
-        //       {
-        //         $room: {
-        //             _id: { "channelName": "$channelName" },
-        //                 'messages': { '$addToSet': '$$ROOT' }
-        //         }
-        //     },
-        //     {
-        //         '$project': {
-        //               _id: 0,
-        //             channelName: "$_id.channelName",
-        //             'messages': { '$slice': ['$messages', 1] }
-        //         }
-        //     },
-        //     {
-        //         $limit: Number(limit)
-        //     }
-        // ])
-        //
-        //     // console.log(JSON.stringify(messages, undefined, 2))
-        //
-        //     res.status(200).json({messages: messages})
-
-    } catch (ex) {
-        next(ex)
-    }
-}
-
-
-export async function getRoomDetail(req, res, next) {
+export async function getGroupDetail(req, res, next) {
     try {
 
-        const {roomId} = req.params
-        if (!roomId) return next("Please provide room id")
+        const {groupId} = req.params
+        if (!groupId) return next("Please provide groupId")
 
-        let rooms = await getRoomQuery({
-            type: "private",
-            _id: new ObjectId(roomId),
-            participants: {
-                $elemMatch: {
-                    userId: new ObjectId(req.user._id)
+        let groups = await Group.aggregate([
+            {
+                $match: {
+                    _id: new ObjectId(groupId)
+                }
+            },
+            {
+                $lookup: {
+                    from: "membership",
+                    localField: "_id",
+                    foreignField: "groupId",
+                    as: "members"
+                }
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "members.userId",
+                    foreignField: "_id",
+                    as: "membersTemp"
+                }
+            },
+            {
+                $addFields: {
+                    members: {
+                        $map: {
+                            input: "$members",
+                            as: "member",
+                            in: {
+                                $mergeObjects: [
+                                    "$$member",
+                                    {
+                                        user: {
+                                            $arrayElemAt: [
+                                                {
+                                                    $filter: {
+                                                        input: "$membersTemp",
+                                                        cond: {$eq: ["$$this._id", "$$member.userId"]}
+                                                    }
+                                                },
+                                                0
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    membersTemp: 0,
+                    "members.user._id": 0,
+                    "members.user.firstName": 0,
+                    "members.user.lastName": 0,
+                    "members.user.password": 0,
+                    "members.user.createdAt": 0,
+                    "members.user.updatedAt": 0,
+                    "members.user.friends": 0,
+                    "members.user.cover": 0,
+                    "members.user.email": 0,
+                    "members.user.role": 0,
                 }
             }
-        })
-        if (rooms.length > 0) {
-            res.status(200).json({room: rooms[0]})
+        ])
+
+        if (groups.length > 0) {
+            res.status(200).json({group: groups[0]})
         } else {
-            next("Room not found")
+            next("group not found")
         }
     } catch (ex) {
         next(ex)
@@ -219,83 +222,38 @@ export async function getRoomDetail(req, res, next) {
 }
 
 
-// get room message for detail chat like messenger or quick popup chat.
-export async function getRoomMessages(req, res, next) {
-    // let roomId = req.params.roomId
-    let {
-        roomId,
-        perPage = 10,
-        pageNumber = 1,
-        orderBy = "createdAt",
-        orderDirection = "desc"
-    } = req.query
-    if (!roomId) return next("Please provide room id")
-
-    if (perPage && perPage > 20) {
-        perPage = 20
-    }
-
-    perPage = Number(perPage)
-
-    if (isNaN(perPage)) {
-        perPage = 20
-    }
-
-    pageNumber = Number(pageNumber)
-    if (isNaN(pageNumber)) {
-        pageNumber = 1
-    }
-
-    if (pageNumber <= 0) {
-        pageNumber = 1
-    }
-
-
-    roomId = new ObjectId(roomId)
-
+export async function addInvitePeople(req, res, next) {
     try {
-        let messages = await Message.aggregate([
-            {
-                $match: {
-                    roomId: roomId,
 
-                }
-            },
-            {
-                $lookup: {
-                    from: "room",
-                    localField: "roomId",
-                    foreignField: "_id",
-                    as: "room"
-                }
-            },
-            {
-                $unwind: {path: "$room"}
-            },
-            // verify logged has in this room
-            {
-                $match: {
-                    "room.participants": {
-                        $elemMatch: {
-                            userId: new ObjectId(req.user._id)
-                        }
+        const {groupId, peoples = []} = req.body
+        if (!groupId) return next("Please provide groupId")
+
+        let group = await Group.findOne({_id: new ObjectId(groupId)})
+        if (!group) return next("This group is not exists")
+
+        const operation = peoples.map(peopleId => ({
+            updateOne: {
+                filter: {
+                    senderId: new ObjectId(req.user._id),
+                    groupId: new ObjectId(groupId),
+                    recipientId: new ObjectId(peopleId),
+                },
+                update: {
+                    $set: {
+                        senderId: new ObjectId(req.user._id),
+                        groupId: new ObjectId(groupId),
+                        recipientId: new ObjectId(peopleId),
+                        createdAt: new Date()
                     }
-                }
-            },
-            {
-                $project: {
-                    room: 0,
-                    roomId: 0,
-                }
-            },
-            {
-                $skip: perPage * (pageNumber - 1)
-            },
-            {
-                $limit: perPage * pageNumber
+                },
+                upsert: true
             }
-        ])
-        res.status(200).json({messages: messages})
+        }))
+
+        let result = await Invitation.bulkWrite(operation)
+        console.log(result)
+
+        res.status(201).json({message: ""})
 
     } catch (ex) {
         next(ex)
@@ -303,142 +261,3 @@ export async function getRoomMessages(req, res, next) {
 }
 
 
-export async function getRoomsMessages(req, res, next) {
-
-    let authId = new ObjectId(req.user._id)
-
-    try {
-        let messages = await Room.aggregate([
-            {
-                $match: {
-                    participants: {
-                        $elemMatch: {
-                            userId: authId
-                        }
-                    },
-
-                }
-            },
-            {
-                $lookup: {
-                    from: "message",
-                    localField: "_id",
-                    foreignField: "roomId",
-                    as: "messages"
-                }
-            },
-            // {
-            //     $unwind: {path: "$room"}
-            // },
-            // // verify logged has in this room
-            // {
-            //     $match: {
-            //         "room.participants": {
-            //             $elemMatch: {
-            //                 userId: new ObjectId(req.user._id)
-            //             }
-            //         }
-            //     }
-            // },
-            // {
-            //     $project: {
-            //         room: 0,
-            //         roomId: 0,
-            //     }
-            // }
-        ])
-
-        res.status(200).json({messages: messages})
-
-    } catch (ex) {
-        next(ex)
-    }
-}
-
-
-// export async function getRoomMessages(req, res, next) {
-//     let authId = new ObjectId(req.user._id)
-//
-//     try {
-//         let messages = await Room.aggregate([
-//             {
-//                 $match: {
-//                     participants: {
-//                         $elemMatch: {
-//                             userId: authId
-//                         }
-//                     },
-//
-//                 }
-//             },
-//             {
-//                 $lookup: {
-//                     from: "message",
-//                     localField: "_id",
-//                     foreignField: "roomId",
-//                     as: "messages"
-//                 }
-//             },
-//             // {
-//             //     $unwind: {path: "$room"}
-//             // },
-//             // // verify logged has in this room
-//             // {
-//             //     $match: {
-//             //         "room.participants": {
-//             //             $elemMatch: {
-//             //                 userId: new ObjectId(req.user._id)
-//             //             }
-//             //         }
-//             //     }
-//             // },
-//             // {
-//             //     $project: {
-//             //         room: 0,
-//             //         roomId: 0,
-//             //     }
-//             // }
-//         ])
-//
-//         res.status(200).json({messages: messages})
-//
-//     } catch (ex) {
-//         next(ex)
-//     }
-// }
-
-
-export async function sendMessage(req, res, next) {
-    const {message, roomId} = req.body
-    try {
-
-        let newMessage = new Message({
-            message,
-            roomId: new ObjectId(roomId),
-            senderId: new ObjectId(req.user._id)
-        })
-
-
-        newMessage = await newMessage.save()
-
-        // let messages = await getMessageQuery({
-        //     $match: {
-        //         _id: new ObjectId(newMessage._id)
-        //     }
-        // })
-        // broadcast to friend
-        // Trigger a 'message' event on the recipient's private channel
-        pusher.trigger(`private-chat-${roomId}`, 'message', {
-            message: newMessage
-        }).then(a => {
-            console.log(a)
-        }).catch(ex => {
-            console.log(ex.message)
-        })
-
-        res.status(201).json({message: newMessage})
-
-    } catch (ex) {
-        next(ex)
-    }
-}

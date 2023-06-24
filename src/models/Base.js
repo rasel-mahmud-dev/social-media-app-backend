@@ -106,6 +106,10 @@ class Base {
         return (await Base.Db(this.collectionName)).insertMany(...params);
     }
 
+    static async bulkWrite(...operation) {
+        return (await Base.Db(this.collectionName)).bulkWrite(...operation);
+    }
+
     static async find(...params) {
         return (await Base.Db(this.collectionName)).find(...params).toArray();
     }
