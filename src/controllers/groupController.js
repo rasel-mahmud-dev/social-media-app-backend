@@ -8,6 +8,7 @@ import imageKitUpload from "src/services/ImageKitUpload";
 import jsonParse from "src/utils/jsonParse";
 import Membership from "src/models/Membership";
 import Invitation from "src/models/Invitation";
+import notificationEvent from "src/services/notification";
 
 
 function getRoomQuery(match = {}) {
@@ -225,6 +226,7 @@ export async function getGroupDetail(req, res, next) {
 export async function addInvitePeople(req, res, next) {
     try {
 
+
         const {groupId, peoples = []} = req.body
         if (!groupId) return next("Please provide groupId")
 
@@ -251,7 +253,16 @@ export async function addInvitePeople(req, res, next) {
         }))
 
         let result = await Invitation.bulkWrite(operation)
-        console.log(result)
+
+        peoples.forEach(peopleId => {
+            notificationEvent.emit("notification", {
+                message: `{firstName} you are invited to join ${group.name} group`,
+                recipientId: peopleId,
+                notificationType: "invitation",
+                groupId: groupId,
+                senderId: req.user._id,
+            })
+        })
 
         res.status(201).json({message: ""})
 
