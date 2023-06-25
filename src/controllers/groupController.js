@@ -339,9 +339,19 @@ export async function getGroupDetail(req, res, next) {
                 }
             }
         ])
+        let isMember = false
 
         if (groups.length > 0) {
-            res.status(200).json({group: groups[0]})
+            if (groups[0].ownerId === req.user._id) {
+                isMember = true
+            } else {
+                let member = await Membership.findOne({groupId: new ObjectId(groups[0]._id)})
+                if (member) {
+                    isMember = true
+                }
+
+            }
+            res.status(200).json({group: groups[0], isYouMember: isMember})
         } else {
             next("group not found")
         }
@@ -458,6 +468,98 @@ export async function acceptInvitation(req, res, next) {
         // })
 
         res.status(201).json({message: ""})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
+export async function getGroupMembers(req, res, next) {
+    try {
+
+
+        let schema = yup.object({
+            groupId: yup.string().required("Please provide groupId").length(24)
+        })
+
+        let {groupId, pageNumber = "1", type = ""} = req.query
+
+        const limit = 10;
+
+        pageNumber = Number(pageNumber)
+        if (isNaN(pageNumber)) {
+            pageNumber = 1
+        }
+
+        await schema.validate({
+            groupId: groupId
+        })
+
+
+        let group = await Group.findOne({_id: new ObjectId(groupId)})
+        if (!group) return next("This group is not exists")
+
+        let matchStage = {}
+        let count = 0
+        if (type === "admin") {
+            matchStage = {
+                $match: {
+                    role: {$in: ["admin", "moderator"]},
+                    groupId: new ObjectId(groupId)
+                }
+            }
+        } else {
+            matchStage = {
+                $match: {
+                    groupId: new ObjectId(groupId)
+                }
+            }
+
+            if (pageNumber === 1) {
+                count = await Membership.countDocuments() || 0
+            }
+
+        }
+
+        let members = await Membership.aggregate([
+            matchStage,
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userId",
+                    foreignField: "_id",
+                    as: "user"
+                }
+            },
+            {
+                $unwind: {path: "$user"}
+            },
+            {
+                $sort: {
+                    createdAt: -1
+                }
+            },
+            {
+                $skip: limit * (pageNumber - 1)
+            },
+            {
+                $limit: limit
+            },
+            {
+                $project: {
+                    user: {
+                        password: 0,
+                        role: 0,
+                        createdAt: 0,
+                        updatedAt: 0,
+                        email: 0,
+                    }
+                }
+            }
+        ])
+
+        res.status(200).json({members: members, totalMembers: count})
 
     } catch (ex) {
         next(ex)
