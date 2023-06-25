@@ -11,15 +11,19 @@ class Feed extends Base {
     }
 
     constructor({
-        content,
-        images = [],
-        userTags = [],
-        userId // ref
-    }) {
+                    content,
+                    images = [],
+                    userTags = [],
+                    userId, // ref
+                    type = "user",
+                    groupId // ref
+                }) {
         super("feed");
+        this.type = type // 'group' or 'user'
+        this.groupId = groupId
         this.content = content
         this.images = images
-        this.userId = userId 
+        this.userId = userId
         this.userTags = userTags
         this.createdAt = new Date();
         this.updatedAt = new Date();

@@ -5,6 +5,7 @@ import pusher from "../pusher/pusher";
 import Comment from "../models/Comment";
 import imageKitUpload from "../services/ImageKitUpload";
 import Media from "../models/Media";
+import Group from "src/models/Group";
 
 const formidable = require("formidable");
 
@@ -61,10 +62,10 @@ export const getFeeds = async (req, res, next) => {
     try {
         let {userId, pageNumber = "1"} = req.query
 
-        const limit = 2;
+        const limit = 50;
 
         pageNumber = Number(pageNumber)
-        if(isNaN(pageNumber)){
+        if (isNaN(pageNumber)) {
             pageNumber = 1
         }
 
@@ -76,6 +77,11 @@ export const getFeeds = async (req, res, next) => {
             })
         } else {
             feeds = await Feed.aggregate([
+                {
+                    $match: {
+                        type: "user"
+                    }
+                },
                 {
                     $lookup: {
                         from: "friend",
@@ -166,7 +172,7 @@ export const getFeeds = async (req, res, next) => {
                     },
                 },
                 {
-                    $unwind: "$comments" // Unwind the "comments" array
+                    $unwind: {path: "$comments", preserveNullAndEmptyArrays: true} // Unwind the "comments" array
                 },
                 {
                     $lookup: {
@@ -177,7 +183,7 @@ export const getFeeds = async (req, res, next) => {
                     }
                 },
                 {
-                    $unwind: {path: "$comments.author"}
+                    $unwind: {path: "$comments.author", preserveNullAndEmptyArrays: true}
                 },
                 {
                     $sort: {
@@ -245,13 +251,21 @@ export const createFeed = (req, res, next) => {
 
             const {
                 content,
-                userTags
+                userTags,
+                groupSlug = "",
             } = fields;
 
 
             let images = []
 
             let incomingFiles = []
+
+            let group;
+            if (groupSlug) {
+                group = await Group.findOne({slug: groupSlug})
+                if (!group) return next("This Group is not found")
+            }
+
 
             if (files && files.image && Array.isArray(files.image)) {
                 incomingFiles = files.image
@@ -283,6 +297,8 @@ export const createFeed = (req, res, next) => {
 
             let feed = new Feed({
                 content,
+                groupId: group ? new ObjectId(group._id) : new ObjectId("000000000000000000000000"),
+                type: group ? "group" : "user",
                 userId: new ObjectId(req.user._id),
                 images,
                 userTags

@@ -3,6 +3,7 @@ import User from "../models/User";
 import Friend from "../models/Friend";
 import {getFeedQuery} from "./feedController";
 import Media from "../models/Media";
+import notificationEvent from "src/services/notification";
 
 function getFriend(match) {
     return Friend.aggregate([
@@ -146,6 +147,15 @@ export const addFriend = async (req, res, next) => {
         }, {
             upsert: true
         })
+
+        notificationEvent.emit("notification", {
+            message: ``,
+            recipientId: friendId,
+            notificationType: "friend-request",
+            groupId: "000000000000000000000000",
+            senderId: req.user._id,
+        })
+
         let friend = await getFriend({
             $match: {
                 receiverId: new ObjectId(friendId),

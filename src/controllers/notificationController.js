@@ -7,7 +7,7 @@ import {ObjectId} from "mongodb";
 export async function getNotifications(req, res, next) {
 
     let {
-        perPage = 10,
+        perPage = 20,
         pageNumber = 1,
         orderBy = "createdAt",
         orderDirection = "desc"
@@ -47,7 +47,23 @@ export async function getNotifications(req, res, next) {
                 }
             },
             {
-                $unwind: { path: "$sender"}
+                $unwind: {path: "$sender"}
+            },
+            {
+                $lookup: {
+                    from: "groups",
+                    foreignField: "_id",
+                    localField: "groupId",
+                    as: "group"
+                }
+            },
+            {
+                $unwind: {path: "$group", preserveNullAndEmptyArrays: true}
+            },
+            {
+                $sort: {
+                    timestamp: -1
+                }
             },
             {
                 $skip: perPage * (pageNumber - 1)

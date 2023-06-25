@@ -9,6 +9,7 @@ import jsonParse from "src/utils/jsonParse";
 import Membership from "src/models/Membership";
 import Invitation from "src/models/Invitation";
 import notificationEvent from "src/services/notification";
+import Feed from "src/models/Feed";
 
 
 function getRoomQuery(match = {}) {
@@ -48,6 +49,133 @@ export async function getMyGroups(req, res, next) {
         next(ex)
     }
 }
+
+
+export async function discoverGroups(req, res, next) {
+    try {
+        let groups = await Group.find({})
+        res.status(200).json({groups: groups})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+// feeds for a specific group
+export async function getGroupFeeds(req, res, next) {
+    try {
+
+        let {groupId, pageNumber = "1"} = req.query
+
+        const limit = 10;
+
+        pageNumber = Number(pageNumber)
+        if (isNaN(pageNumber)) {
+            pageNumber = 1
+        }
+
+
+        let feeds = []
+
+        feeds = await Feed.aggregate([
+            {
+                $match: {
+                    type: "group",
+                    groupId: new ObjectId(groupId)
+                },
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userId",
+                    foreignField: "_id",
+                    as: "author"
+                }
+            },
+            {
+                $unwind: {path: "$author"}
+            },
+            {
+                $lookup: {
+                    from: "like",
+                    localField: "_id",
+                    foreignField: "feedId",
+                    as: "likes"
+                }
+            },
+            {
+                $lookup: {
+                    from: "comment",
+                    localField: "_id",
+                    foreignField: "feedId",
+                    as: "comments"
+                }
+            },
+            {
+                $addFields: {
+                    totalComment: {
+                        $size: "$comments"
+                    }
+                },
+            },
+            {
+                $unwind: {path: "$comments", preserveNullAndEmptyArrays: true} // Unwind the "comments" array
+            },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "comments.userId",
+                    foreignField: "_id",
+                    as: "comments.author"
+                }
+            },
+            {
+                $unwind: {path: "$comments.author", preserveNullAndEmptyArrays: true}
+            },
+            {
+                $sort: {
+                    createdAt: -1
+                }
+            },
+            {
+                $skip: limit * (pageNumber - 1)
+            },
+            {
+                $limit: limit
+            },
+            // {
+            //     $group: {
+            //         _id: null,
+            //         comment: { $first: "$comments" } // Get the first comment
+            //     }
+            // },
+            {
+                $project: {
+                    author: {
+                        password: 0,
+                        role: 0,
+                        createdAt: 0,
+                        updatedAt: 0,
+                        email: 0,
+                    },
+                    likes: {
+                        "feedId": 0,
+                        "createdAt": 0,
+                        "updatedAt": 0
+                    },
+                    // comment: { $slice: ["$comments", 1] }
+                }
+            }
+
+        ])
+
+        res.status(200).json({feeds: feeds})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
 
 // create chat room
 export async function createGroup(req, res, next) {
@@ -142,13 +270,13 @@ export async function createGroup(req, res, next) {
 export async function getGroupDetail(req, res, next) {
     try {
 
-        const {groupId} = req.params
-        if (!groupId) return next("Please provide groupId")
+        const {groupSlug} = req.params
+        if (!groupSlug) return next("Please provide groupSlug")
 
         let groups = await Group.aggregate([
             {
                 $match: {
-                    _id: new ObjectId(groupId)
+                    slug: groupSlug
                 }
             },
             {
@@ -258,11 +386,76 @@ export async function addInvitePeople(req, res, next) {
             notificationEvent.emit("notification", {
                 message: `{firstName} you are invited to join ${group.name} group`,
                 recipientId: peopleId,
-                notificationType: "invitation",
+                notificationType: "group-invitation",
                 groupId: groupId,
                 senderId: req.user._id,
             })
         })
+
+        res.status(201).json({message: ""})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
+export async function acceptInvitation(req, res, next) {
+    try {
+
+        let schema = yup.object({
+            groupId: yup.string().required("Please provide groupId").length(24)
+        })
+
+        const {groupId} = req.body
+
+        await schema.validate({
+            groupId: groupId
+        })
+
+
+        let group = await Group.findOne({_id: new ObjectId(groupId)})
+        if (!group) return next("This group is not exists")
+
+        let invitation = await Invitation.findOne({
+            groupId: new ObjectId(groupId),
+            recipientId: new ObjectId(req.user._id)
+        })
+
+        console.log(invitation, groupId)
+
+        // Invitation.updateOne({})
+
+        // const operation = peoples.map(peopleId => ({
+        //     updateOne: {
+        //         filter: {
+        //             senderId: new ObjectId(req.user._id),
+        //             groupId: new ObjectId(groupId),
+        //             recipientId: new ObjectId(peopleId),
+        //         },
+        //         update: {
+        //             $set: {
+        //                 senderId: new ObjectId(req.user._id),
+        //                 groupId: new ObjectId(groupId),
+        //                 recipientId: new ObjectId(peopleId),
+        //                 createdAt: new Date()
+        //             }
+        //         },
+        //         upsert: true
+        //     }
+        // }))
+        //
+        // let result = await Invitation.bulkWrite(operation)
+        //
+        // peoples.forEach(peopleId => {
+        //     notificationEvent.emit("notification", {
+        //         message: `{firstName} you are invited to join ${group.name} group`,
+        //         recipientId: peopleId,
+        //         notificationType: "group-invitation",
+        //         groupId: groupId,
+        //         senderId: req.user._id,
+        //     })
+        // })
 
         res.status(201).json({message: ""})
 
