@@ -62,13 +62,12 @@ export const getFeeds = async (req, res, next) => {
     try {
         let {userId, pageNumber = "1"} = req.query
 
-        const limit = 50;
+        const limit = 10;
 
         pageNumber = Number(pageNumber)
         if (isNaN(pageNumber)) {
             pageNumber = 1
         }
-
 
         let feeds = []
         if (userId) {
@@ -172,19 +171,26 @@ export const getFeeds = async (req, res, next) => {
                     },
                 },
                 {
-                    $unwind: {path: "$comments", preserveNullAndEmptyArrays: true} // Unwind the "comments" array
+                    $addFields: {
+                        totalLikes: {
+                            $size: "$likes"
+                        }
+                    },
                 },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "comments.userId",
-                        foreignField: "_id",
-                        as: "comments.author"
-                    }
-                },
-                {
-                    $unwind: {path: "$comments.author", preserveNullAndEmptyArrays: true}
-                },
+                // {
+                //     $unwind: {path: "$comments", preserveNullAndEmptyArrays: true} // Unwind the "comments" array
+                // },
+                // {
+                //     $lookup: {
+                //         from: "users",
+                //         localField: "comments.userId",
+                //         foreignField: "_id",
+                //         as: "comments.author"
+                //     }
+                // },
+                // {
+                //     $unwind: {path: "$comments.author", preserveNullAndEmptyArrays: true}
+                // },
                 {
                     $sort: {
                         createdAt: -1
@@ -211,11 +217,8 @@ export const getFeeds = async (req, res, next) => {
                             updatedAt: 0,
                             email: 0,
                         },
-                        likes: {
-                            "feedId": 0,
-                            "createdAt": 0,
-                            "updatedAt": 0
-                        },
+                        likes: 0,
+                        comments: 0
                         // comment: { $slice: ["$comments", 1] }
                     }
                 }
@@ -304,43 +307,44 @@ export const createFeed = (req, res, next) => {
                 userTags
             })
 
-            feed = await feed.save()
-            if (feed) {
-                let newFeedId = feed._id
-                feed = await getFeedQuery({
-                    _id: new ObjectId(feed._id)
-                })
+            // feed = await feed.save()
+            // if (feed) {
+            //     let newFeedId = feed._id
+            //     feed = await getFeedQuery({
+            //         _id: new ObjectId(feed._id)
+            //     })
+            //
+            //     if (images.length > 0) {
+            //         let allMedia = images.map(img => (
+            //             {
+            //                 feedId: newFeedId,
+            //                 userId: new ObjectId(req.user._id),
+            //                 type: "image",
+            //                 url: img
+            //             }
+            //         ))
+            //
+            //         Media.insertMany(allMedia).catch(ex => {
+            //             console.log("media save fail")
+            //         })
+            //
+            //     }
+            //
+            //
+            //     pusher.trigger("public-channel", "new-feed", {
+            //         feed: feed[0]
+            //     }).then(() => {
+            //     }).catch(ex => {
+            //         console.log(ex.message)
+            //     })
 
-                if (images.length > 0) {
-                    let allMedia = images.map(img => (
-                        {
-                            feedId: newFeedId,
-                            userId: new ObjectId(req.user._id),
-                            type: "image",
-                            url: img
-                        }
-                    ))
 
-                    Media.insertMany(allMedia).catch(ex => {
-                        console.log("media save fail")
-                    })
+                // res.status(201).json({feed: feed[0]});
+                res.status(201).json({feed: feed});
 
-                }
-
-
-                pusher.trigger("public-channel", "new-feed", {
-                    feed: feed[0]
-                }).then(() => {
-                }).catch(ex => {
-                    console.log(ex.message)
-                })
-
-
-                res.status(201).json({feed: feed[0]});
-
-            } else {
-                next("Feed post fail");
-            }
+            // } else {
+            //     next("Feed post fail");
+            // }
 
         } catch (ex) {
             next(ex);

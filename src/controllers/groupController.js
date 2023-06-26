@@ -67,7 +67,7 @@ export async function getGroupFeeds(req, res, next) {
 
         let {groupId, pageNumber = "1"} = req.query
 
-        const limit = 10;
+        const limit = 3;
 
         pageNumber = Number(pageNumber)
         if (isNaN(pageNumber)) {
@@ -340,18 +340,21 @@ export async function getGroupDetail(req, res, next) {
             }
         ])
         let isMember = false
+        let role = "user"
 
         if (groups.length > 0) {
             if (groups[0].ownerId === req.user._id) {
                 isMember = true
+                role = "admin"
             } else {
                 let member = await Membership.findOne({groupId: new ObjectId(groups[0]._id)})
                 if (member) {
+                    role = member.role
                     isMember = true
                 }
 
             }
-            res.status(200).json({group: groups[0], isYouMember: isMember})
+            res.status(200).json({group: groups[0], role, isYouMember: isMember})
         } else {
             next("group not found")
         }
