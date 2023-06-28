@@ -6,6 +6,7 @@ import Comment from "../models/Comment";
 import imageKitUpload from "../services/ImageKitUpload";
 import Media from "../models/Media";
 import Group from "src/models/Group";
+import Page from "src/models/Page";
 
 const formidable = require("formidable");
 
@@ -256,6 +257,7 @@ export const createFeed = (req, res, next) => {
                 content,
                 userTags,
                 groupSlug = "",
+                pageName = "",
             } = fields;
 
 
@@ -264,9 +266,13 @@ export const createFeed = (req, res, next) => {
             let incomingFiles = []
 
             let group;
+            let page;
             if (groupSlug) {
                 group = await Group.findOne({slug: groupSlug})
                 if (!group) return next("This Group is not found")
+            } else if (pageName) {
+                page = await Page.findOne({name: pageName})
+                if (!page) return next("This Page is not found")
             }
 
 
@@ -301,7 +307,8 @@ export const createFeed = (req, res, next) => {
             let feed = new Feed({
                 content,
                 groupId: group ? new ObjectId(group._id) : new ObjectId("000000000000000000000000"),
-                type: group ? "group" : "user",
+                pageId: page ? new ObjectId(page._id) : new ObjectId("000000000000000000000000"),
+                type: group ? "group" : page ? "page" : "user",
                 userId: new ObjectId(req.user._id),
                 images,
                 userTags

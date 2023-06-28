@@ -5,7 +5,6 @@ import * as yup from "yup"
 import formidable from "formidable";
 import Group from "src/models/Group";
 import imageKitUpload from "src/services/ImageKitUpload";
-import Membership from "src/models/Membership";
 import Page from "src/models/Page";
 
 
@@ -50,8 +49,8 @@ export async function getMyGroups(req, res, next) {
 
 export async function discoverPages(req, res, next) {
     try {
-        let groups = await Group.find({})
-        res.status(200).json({groups: groups})
+        let pages = await Page.find({})
+        res.status(200).json({pages: pages})
 
     } catch (ex) {
         next(ex)
@@ -162,94 +161,44 @@ export async function createPage(req, res, next) {
 export async function getPageDetail(req, res, next) {
     try {
 
-        const {groupSlug} = req.params
-        if (!groupSlug) return next("Please provide groupSlug")
-
-        let groups = await Group.aggregate([
+        const {pageName} = req.params
+        console.log(pageName)
+        if (!pageName) return next("Please provide page name")
+        let pages = await Page.aggregate([
             {
                 $match: {
-                    slug: groupSlug
-                }
-            },
-            {
-                $lookup: {
-                    from: "membership",
-                    localField: "_id",
-                    foreignField: "groupId",
-                    as: "members"
-                }
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "members.userId",
-                    foreignField: "_id",
-                    as: "membersTemp"
-                }
-            },
-            {
-                $addFields: {
-                    members: {
-                        $map: {
-                            input: "$members",
-                            as: "member",
-                            in: {
-                                $mergeObjects: [
-                                    "$$member",
-                                    {
-                                        user: {
-                                            $arrayElemAt: [
-                                                {
-                                                    $filter: {
-                                                        input: "$membersTemp",
-                                                        cond: {$eq: ["$$this._id", "$$member.userId"]}
-                                                    }
-                                                },
-                                                0
-                                            ]
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
-                }
-            },
-            {
-                $project: {
-                    membersTemp: 0,
-                    "members.user._id": 0,
-                    "members.user.firstName": 0,
-                    "members.user.lastName": 0,
-                    "members.user.password": 0,
-                    "members.user.createdAt": 0,
-                    "members.user.updatedAt": 0,
-                    "members.user.friends": 0,
-                    "members.user.cover": 0,
-                    "members.user.email": 0,
-                    "members.user.role": 0,
+                    name: pageName
                 }
             }
         ])
-        let isMember = false
-        let role = "user"
 
-        if (groups.length > 0) {
-            if (groups[0].ownerId === req.user._id) {
-                isMember = true
-                role = "admin"
-            } else {
-                let member = await Membership.findOne({groupId: new ObjectId(groups[0]._id)})
-                if (member) {
-                    role = member.role
-                    isMember = true
-                }
-
-            }
-            res.status(200).json({group: groups[0], role, isYouMember: isMember})
+        if (pages.length > 0) {
+            res.status(200).json({page: pages[0]})
         } else {
-            next("group not found")
+            next("page not found")
         }
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
+export async function getPagePosts(req, res, next) {
+    try {
+
+        const {pageName} = req.params
+
+        if (!pageName) return next("Please provide page name")
+        let pages = await Page.aggregate([
+            {
+                $match: {
+                    name: pageName
+                }
+            }
+        ])
+
+        res.status(200).json({page: pages})
+
     } catch (ex) {
         next(ex)
     }
