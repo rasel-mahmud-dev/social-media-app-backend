@@ -117,11 +117,11 @@ export const getFriends = async (req, res, next) => {
                 ]
             }
         })
+        //
+        // let pendingFriends = allFriends.filter(friend => friend.status === "pending")
+        // let friends = allFriends.filter(friend => friend.status === "accepted")
 
-        let pendingFriends = allFriends.filter(friend => friend.status === "pending")
-        let friends = allFriends.filter(friend => friend.status === "accepted")
-
-        res.status(200).json({friends: friends, pendingFriends});
+        res.status(200).json({friends: allFriends});
 
     } catch (ex) {
         next(ex);

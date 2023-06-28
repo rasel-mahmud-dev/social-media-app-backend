@@ -307,44 +307,44 @@ export const createFeed = (req, res, next) => {
                 userTags
             })
 
-            // feed = await feed.save()
-            // if (feed) {
-            //     let newFeedId = feed._id
-            //     feed = await getFeedQuery({
-            //         _id: new ObjectId(feed._id)
-            //     })
-            //
-            //     if (images.length > 0) {
-            //         let allMedia = images.map(img => (
-            //             {
-            //                 feedId: newFeedId,
-            //                 userId: new ObjectId(req.user._id),
-            //                 type: "image",
-            //                 url: img
-            //             }
-            //         ))
-            //
-            //         Media.insertMany(allMedia).catch(ex => {
-            //             console.log("media save fail")
-            //         })
-            //
-            //     }
-            //
-            //
-            //     pusher.trigger("public-channel", "new-feed", {
-            //         feed: feed[0]
-            //     }).then(() => {
-            //     }).catch(ex => {
-            //         console.log(ex.message)
-            //     })
+            feed = await feed.save()
+            if (feed) {
+                let newFeedId = feed._id
+                feed = await getFeedQuery({
+                    _id: new ObjectId(feed._id)
+                })
+
+                if (images.length > 0) {
+                    let allMedia = images.map(img => (
+                        {
+                            feedId: newFeedId,
+                            userId: new ObjectId(req.user._id),
+                            type: "image",
+                            url: img
+                        }
+                    ))
+
+                    Media.insertMany(allMedia).catch(ex => {
+                        console.log("media save fail")
+                    })
+
+                }
 
 
-                // res.status(201).json({feed: feed[0]});
-                res.status(201).json({feed: feed});
+                pusher.trigger("public-channel", "new-feed", {
+                    feed: feed[0]
+                }).then(() => {
 
-            // } else {
-            //     next("Feed post fail");
-            // }
+                }).catch(ex => {
+                    console.log(ex.message)
+                })
+
+
+                res.status(201).json({feed: feed[0]});
+
+            } else {
+                next("Feed post fail");
+            }
 
         } catch (ex) {
             next(ex);
