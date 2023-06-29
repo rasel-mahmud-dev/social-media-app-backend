@@ -7,6 +7,7 @@ import imageKitUpload from "src/services/ImageKitUpload";
 import Page from "src/models/Page";
 import Feed from "src/models/Feed";
 import PageLike from "src/models/PageLike";
+import PageFollower from "src/models/PageFollower";
 
 
 function getPageLikeQuery(match = {}) {
@@ -30,11 +31,41 @@ function getPageLikeQuery(match = {}) {
                     fullName: 1
                 },
                 userId: 1,
+                pageId: 1,
                 _id: 1
             }
         }
     ])
 }
+
+function getPageFollowerQuery(match = {}) {
+    return PageFollower.aggregate([
+        {$match: match},
+        {
+            $lookup: {
+                from: "users",
+                localField: "userId",
+                foreignField: "_id",
+                as: "user"
+            }
+        },
+        {
+            $unwind: {path: "$user"}
+        },
+        {
+            $project: {
+                user: {
+                    avatar: 1,
+                    fullName: 1
+                },
+                userId: 1,
+                pageId: 1,
+                _id: 1
+            }
+        }
+    ])
+}
+
 
 export async function getMyGroups(req, res, next) {
     try {
@@ -168,7 +199,6 @@ export async function getPageDetail(req, res, next) {
     try {
 
         const {pageName} = req.params
-        console.log(pageName)
         if (!pageName) return next("Please provide page name")
         let pages = await Page.aggregate([
             {
@@ -179,7 +209,15 @@ export async function getPageDetail(req, res, next) {
         ])
 
         if (pages.length > 0) {
-            res.status(200).json({page: pages[0]})
+
+            let totalLikes = await PageLike.countDocuments({pageId: pages[0]._id}) || 0
+            let totalFollowers = await PageFollower.countDocuments({pageId: pages[0]._id}) || 0
+
+            res.status(200).json({
+                page: pages[0],
+                totalLikes,
+                totalFollowers
+            })
         } else {
             next("page not found")
         }
@@ -266,10 +304,44 @@ export async function togglePageLike(req, res, next) {
     }
 }
 
+// add page like
+export async function addPageLike(req, res, next) {
+    try {
+
+        const {pageId} = req.body
+
+        if (!pageId) return next("Please provide page id")
+
+        const page = await Page.findOne({_id: new ObjectId(pageId)})
+        if (!page) return next("This Page is not found")
+
+       await PageLike.updateOne({
+            pageId: new ObjectId(pageId),
+            userId: new ObjectId(req.user._id),
+        }, {
+            pageId: new ObjectId(pageId),
+            userId: new ObjectId(req.user._id),
+            createdAt: new Date()
+        }, {upsert: true})
+
+
+        let likes = await getPageLikeQuery({
+            _id: new ObjectId(pageId)
+        })
+
+        res.status(201).json({
+            like: likes[0]
+        })
+
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
 // get page likes
 export async function getPageLikes(req, res, next) {
     try {
-
         const {pageId} = req.query
 
         if (!pageId) return next("Please provide page id")
@@ -286,6 +358,59 @@ export async function getPageLikes(req, res, next) {
     }
 }
 
+
+export async function togglePageFollow(req, res, next) {
+    try {
+
+        const {pageId, withLike = false} = req.body
+
+        if (!pageId) return next("Please provide page id")
+
+        const page = await Page.findOne({_id: new ObjectId(pageId)})
+        if (!page) return next("This Page is not found")
+
+        let result = await PageFollower.deleteOne({
+            pageId: new ObjectId(pageId),
+            userId: new ObjectId(req.user._id)
+        })
+
+        if (result.deletedCount) {
+            // also remove like if pass withLike true from frontend
+            if (withLike) {
+                await PageLike.deleteOne({
+                    pageId: new ObjectId(pageId),
+                    userId: new ObjectId(req.user._id)
+                })
+            }
+            res.status(201).json({removed: true})
+        } else {
+            let result = await PageFollower.insertOne({
+                pageId: new ObjectId(pageId),
+                userId: new ObjectId(req.user._id),
+                createdAt: new Date()
+            })
+            // also add like if pass withLike true from frontend
+            if (withLike) {
+                await PageLike.insertOne({
+                    pageId: new ObjectId(pageId),
+                    userId: new ObjectId(req.user._id)
+                })
+            }
+            if (result.insertedId) {
+                let followers = await getPageFollowerQuery({
+                    _id: new ObjectId(result.insertedId)
+                })
+                res.status(201).json({
+                    removed: false, follower: followers[0]
+                })
+            } else {
+                res.status(201).json({removed: true})
+            }
+        }
+    } catch (ex) {
+        next(ex)
+    }
+}
 
 
 

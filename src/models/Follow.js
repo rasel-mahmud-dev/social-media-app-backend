@@ -6,16 +6,16 @@ class Follow extends Base {
     // _id  => database uuid
 
     static indexes = {
-        follower: {}, // who are follwing
+        follower: {}, // who are following
         following: {}, // whom
     }
 
     constructor({
                     follower, // auth user
-                    following, // ref  followed people
+                    following, // ref followed people
                     priority = 1, // 1=see first, 2 normal
                 }) {
-        super(Saved.collectionName);
+        super(Follow.collectionName);
         this.follower = follower
         this.following = following
         this.priority = priority;
@@ -23,5 +23,6 @@ class Follow extends Base {
         this.updatedAt = new Date();
     }
 }
+
 
 export default Follow;
