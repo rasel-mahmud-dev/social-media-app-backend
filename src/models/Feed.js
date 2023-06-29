@@ -16,11 +16,13 @@ class Feed extends Base {
                     userTags = [],
                     userId, // ref
                     type = "user",
-                    groupId // ref
+                    groupId,// ref
+                    pageId // ref
                 }) {
         super("feed");
-        this.type = type // 'group' or 'user'
+        this.type = type // 'group' or 'user' or "page"
         this.groupId = groupId
+        this.pageId = pageId
         this.content = content
         this.images = images
         this.userId = userId

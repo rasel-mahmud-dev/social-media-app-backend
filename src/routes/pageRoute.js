@@ -3,8 +3,8 @@ import {
     discoverPages,
     getPageDetail,
     getPagePosts,
-
-    getMyPages
+    togglePageLike,
+    getMyPages, getPageLikes
 } from "../controllers/pageController";
 
 
@@ -17,6 +17,8 @@ router.get("/discover", auth, discoverPages);
 router.get("/posts/:pageName", auth, getPagePosts);
 router.get("/my-pages", auth, getMyPages);
 router.post("/create", auth, createPage);
+router.post("/toggle-like", auth, togglePageLike);
+router.get("/likes", auth, getPageLikes);
 router.get("/:pageName", auth, getPageDetail);
 
 

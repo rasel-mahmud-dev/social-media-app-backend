@@ -1,34 +1,36 @@
 import {ObjectId} from "mongodb";
-import Room from "../models/Room";
 
 import * as yup from "yup"
 import formidable from "formidable";
 import Group from "src/models/Group";
 import imageKitUpload from "src/services/ImageKitUpload";
 import Page from "src/models/Page";
+import Feed from "src/models/Feed";
+import PageLike from "src/models/PageLike";
 
 
-function getRoomQuery(match = {}) {
-    return Room.aggregate([
+function getPageLikeQuery(match = {}) {
+    return PageLike.aggregate([
         {$match: match},
         {
             $lookup: {
                 from: "users",
-                localField: "participants.userId",
+                localField: "userId",
                 foreignField: "_id",
-                as: "participants"
+                as: "user"
             }
         },
         {
+            $unwind: {path: "$user"}
+        },
+        {
             $project: {
-                name: 1,
-                type: 1,
-                _id: 1,
-                participants: {
-                    _id: 1,
-                    fullName: 1,
-                    avatar: 1
-                }
+                user: {
+                    avatar: 1,
+                    fullName: 1
+                },
+                userId: 1,
+                _id: 1
             }
         }
     ])
@@ -49,7 +51,11 @@ export async function getMyGroups(req, res, next) {
 
 export async function discoverPages(req, res, next) {
     try {
-        let pages = await Page.find({})
+        let pages = await Page.find({
+            ownerId: {
+                $nin: [new ObjectId(req.user._id)]
+            }
+        })
         res.status(200).json({pages: pages})
 
     } catch (ex) {
@@ -57,7 +63,7 @@ export async function discoverPages(req, res, next) {
     }
 }
 
-// feeds for a specific group
+// feeds for my pages
 export async function getMyPages(req, res, next) {
     try {
 
@@ -84,7 +90,7 @@ export async function getMyPages(req, res, next) {
 }
 
 
-// create chat room
+// create page
 export async function createPage(req, res, next) {
     const form = formidable({multiple: false})
     form.parse(req, async function (err, fields, files) {
@@ -189,19 +195,97 @@ export async function getPagePosts(req, res, next) {
         const {pageName} = req.params
 
         if (!pageName) return next("Please provide page name")
-        let pages = await Page.aggregate([
+        const page = await Page.findOne({name: pageName})
+        if (!page) return next("This Page is not found")
+
+
+        let posts = await Feed.aggregate([
             {
                 $match: {
-                    name: pageName
+                    pageId: new ObjectId(page._id)
                 }
+            }, {
+                $lookup: {
+                    from: "pages",
+                    localField: "pageId",
+                    foreignField: "_id",
+                    as: "page"
+                }
+            },
+            {
+                $unwind: {path: "$page"}
             }
         ])
 
-        res.status(200).json({page: pages})
+
+        res.status(200).json({posts: posts})
 
     } catch (ex) {
         next(ex)
     }
 }
+
+
+export async function togglePageLike(req, res, next) {
+    try {
+
+        const {pageId} = req.body
+
+        if (!pageId) return next("Please provide page id")
+
+        const page = await Page.findOne({_id: new ObjectId(pageId)})
+        if (!page) return next("This Page is not found")
+
+        let result = await PageLike.deleteOne({
+            pageId: new ObjectId(pageId),
+            userId: new ObjectId(req.user._id)
+        })
+
+        if (result.deletedCount) {
+            res.status(201).json({removed: true})
+        } else {
+            let result = await PageLike.insertOne({
+                pageId: new ObjectId(pageId),
+                userId: new ObjectId(req.user._id),
+                createdAt: new Date()
+            })
+
+            if (result.insertedId) {
+                let likes = await getPageLikeQuery({
+                    _id: new ObjectId(result.insertedId)
+                })
+                res.status(201).json({
+                    removed: false, like: likes[0]
+                })
+            } else {
+                res.status(201).json({removed: true})
+            }
+        }
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+// get page likes
+export async function getPageLikes(req, res, next) {
+    try {
+
+        const {pageId} = req.query
+
+        if (!pageId) return next("Please provide page id")
+
+
+        let likes = await getPageLikeQuery({
+            pageId: new ObjectId(pageId)
+        })
+
+        res.status(200).json({likes: likes})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
 
 
