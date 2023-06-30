@@ -3,10 +3,26 @@ import {ObjectId} from "mongodb";
 import Reels from "src/models/Reels";
 
 
+export async function getReels(req, res, next) {
+    try {
+        let reels = await Reels.aggregate([
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userId",
+                    foreignField: "_id",
+                    as: "author"
+                }
+            },
+            {
+                $unwind:  { path: "$author"}
+            }
+        ])
+        res.status(200).json({reels: reels})
 
-
-export function getReels(req, res, next) {
-
+    } catch (ex) {
+        next(ex)
+    }
 }
 
 
