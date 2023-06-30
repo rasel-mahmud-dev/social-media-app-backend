@@ -9,7 +9,10 @@ import {auth} from "../middlewares";
 import  {authUrl} from "../services/googeAuth";
 import formidable from "formidable";
 import pusher from "../pusher/pusher";
+import {imageKitAuthenticationParameters} from "src/services/ImageKitUpload";
 
+const ImageKit = require("imagekit");
+const fs = require('fs');
 
 
 const router = require("express").Router();
@@ -41,6 +44,13 @@ router.post("/pusher/auth", (req, res) => {
         res.send(authResponse);
     })
 });
+
+
+
+router.get("/imagekit-authenticationEndpoint", auth, (req, res)=>{
+    let result = imageKitAuthenticationParameters()
+    res.status(200).send(result)
+})
 
 
 export default router

@@ -23,5 +23,17 @@ function imageKitUpload(filePath, fileName, folderName) {
 }
 
 
+export function imageKitAuthenticationParameters(){
+
+    var imagekit = new ImageKit({
+        publicKey: process.env.IMAGE_KIT_publicKey,
+        privateKey: process.env.IMAGE_KIT_privateKey,
+        urlEndpoint: process.env.IMAGE_KIT_urlEndpoint,
+    });
+    var authenticationParameters = imagekit.getAuthenticationParameters();
+
+    return authenticationParameters
+}
+
 export default imageKitUpload
 

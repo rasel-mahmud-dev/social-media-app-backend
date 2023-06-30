@@ -82,7 +82,7 @@ export async function getMyGroups(req, res, next) {
 
 export async function discoverPages(req, res, next) {
     try {
-        let pages = await Page.find({
+        const pages = await Page.find({
             ownerId: {
                 $nin: [new ObjectId(req.user._id)]
             }
@@ -93,6 +93,7 @@ export async function discoverPages(req, res, next) {
         next(ex)
     }
 }
+
 
 // feeds for my pages
 export async function getMyPages(req, res, next) {
@@ -315,18 +316,20 @@ export async function addPageLike(req, res, next) {
         const page = await Page.findOne({_id: new ObjectId(pageId)})
         if (!page) return next("This Page is not found")
 
-       await PageLike.updateOne({
+        await PageLike.updateOne({
             pageId: new ObjectId(pageId),
             userId: new ObjectId(req.user._id),
         }, {
-            pageId: new ObjectId(pageId),
-            userId: new ObjectId(req.user._id),
-            createdAt: new Date()
+            $set: {
+                pageId: new ObjectId(pageId),
+                userId: new ObjectId(req.user._id),
+                createdAt: new Date()
+            }
         }, {upsert: true})
 
 
         let likes = await getPageLikeQuery({
-            _id: new ObjectId(pageId)
+            pageId: new ObjectId(pageId)
         })
 
         res.status(201).json({
@@ -352,6 +355,68 @@ export async function getPageLikes(req, res, next) {
         })
 
         res.status(200).json({likes: likes})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
+// get page likes
+export async function getPageLikesAndFollowing(req, res, next) {
+    try {
+        let following = await PageLike.aggregate([
+            {$match: {}},
+            {
+                $lookup: {
+                    from: "pages",
+                    localField: "pageId",
+                    foreignField: "_id",
+                    as: "page"
+                }
+            },
+            {
+                $unwind: {path: "$page"}
+            }
+        ])
+
+
+        res.status(200).json({following: following})
+
+    } catch (ex) {
+        next(ex)
+    }
+}
+
+
+// get page likes
+export async function getPageFollowing(req, res, next) {
+    try {
+        const {pageId} = req.params
+
+        if (!pageId) return next("Please provide page id")
+
+        let following = await PageFollower.aggregate([
+            {
+                $match: {
+                    pageId: new ObjectId(pageId)
+                }
+            },
+            {
+                $lookup: {
+                    from: "pages",
+                    localField: "pageId",
+                    foreignField: "_id",
+                    as: "page"
+                }
+            },
+            {
+                $unwind: {path: "$page"}
+            }
+        ])
+
+
+        res.status(200).json({following: following})
 
     } catch (ex) {
         next(ex)
