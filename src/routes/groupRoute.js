@@ -10,6 +10,7 @@ import {
 
 
 import {auth} from "../middlewares";
+import {getMyGroupsFeeds} from "src/controllers/feedController";
 
 
 const router = require("express").Router();
@@ -18,6 +19,7 @@ const router = require("express").Router();
 router.get("/", auth, getMyGroups);
 router.get("/discover", auth, discoverGroups);
 router.get("/feeds", auth, getGroupFeeds);
+router.get("/my-feeds", auth, getMyGroupsFeeds);
 router.get("/members", auth, getGroupMembers);
 router.get("/:groupSlug", auth, getGroupDetail);
 router.post("/create", auth, createGroup);

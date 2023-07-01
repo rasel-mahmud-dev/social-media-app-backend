@@ -80,14 +80,38 @@ export const getUsers = async (req, res, next) => {
                     }
                 }
             },
+            // {
+            //     $lookup: {
+            //         from: "users",
+            //         localField: "userId",
+            //         foreignField: "_id",
+            //         as: "author"
+            //     }
+            // },
             {
                 $lookup: {
-                    from: "users",
-                    localField: "userId",
-                    foreignField: "_id",
-                    as: "author"
+                    from: "friend",
+                    let: {userId: "$_id"},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $or: [
+                                        {$eq: ["$$userId", "$senderId"]},
+                                        {$eq: ["$$userId", "$receiverId"]},
+                                    ]
+
+                                }
+                            }
+                        },
+                        {
+                            $limit: 1 // Limit the number of results from the right collection to 1
+                        }
+                    ],
+                    as: "friend"
                 }
             },
+            {$unwind: {path: "$friend", preserveNullAndEmptyArrays: true}},
             {
                 $project: {
                     password: 0,
@@ -98,6 +122,7 @@ export const getUsers = async (req, res, next) => {
                 }
             }
         ])
+        console.log(users.length)
         res.status(200).json(users);
     } catch (ex) {
         next(ex);
@@ -108,16 +133,34 @@ export const getUsers = async (req, res, next) => {
 export const getFriends = async (req, res, next) => {
     try {
 
-        // get all friend request
-        let allFriends = await getFriend({
-            $match: {
-                $or: [
-                    {receiverId: new ObjectId(req.user._id)},
-                    {senderId: new ObjectId(req.user._id)}
-                ]
-            }
-        })
-        //
+        const {userId} = req.query
+
+        let allFriends = []
+
+        if (userId) {
+            allFriends = await getFriend({
+                $match: {
+                    // status: "/accepted",
+                    $or: [
+                        {receiverId: new ObjectId(req.user._id)},
+                        {senderId: new ObjectId(req.user._id)}
+                    ]
+                }
+            })
+        } else {
+            allFriends = await getFriend({
+                $match: {
+                    // status: "accepted",
+                    $or: [
+                        {receiverId: new ObjectId(req.user._id)},
+                        {senderId: new ObjectId(req.user._id)}
+                    ]
+                }
+            })
+        }
+
+        // get all friend requests
+
         // let pendingFriends = allFriends.filter(friend => friend.status === "pending")
         // let friends = allFriends.filter(friend => friend.status === "accepted")
 
@@ -181,6 +224,14 @@ export const removeFriend = async (req, res, next) => {
             ]
         })
 
+        notificationEvent.emit("notification", {
+            message: ``,
+            recipientId: friendId,
+            notificationType: "unfriend",
+            groupId: "000000000000000000000000",
+            senderId: req.user._id,
+        })
+
         res.status(201).json({
             message: "Friend has been removed"
         })
@@ -213,6 +264,15 @@ export const acceptFriendRequest = async (req, res, next) => {
                 status: "accepted"
             }
         })
+
+        notificationEvent.emit("notification", {
+            message: ``,
+            recipientId: friendId,
+            notificationType: "friend-request-accepted",
+            groupId: "000000000000000000000000",
+            senderId: req.user._id,
+        })
+
         return res.status(201).json({message: "Request Accepted", friend: friend[0]})
 
 
@@ -246,7 +306,16 @@ export const rejectFriendRequest = async (req, res, next) => {
 export const getProfile = async (req, res, next) => {
     const {userId} = req.params
     try {
-        let allFriends = await getFriend({
+        let totalFriends = await Friend.countDocuments({
+            status: "accepted",
+            $or: [
+                {receiverId: new ObjectId(userId)},
+                {senderId: new ObjectId(userId)}
+            ]
+        })
+
+
+        let friends = await getFriend({
             $match: {
                 status: "accepted",
                 $or: [
@@ -255,6 +324,7 @@ export const getProfile = async (req, res, next) => {
                 ]
             }
         })
+
 
         let feeds = await getFeedQuery({
 
@@ -271,7 +341,7 @@ export const getProfile = async (req, res, next) => {
             }
         })
 
-        res.status(200).json({friends: allFriends, feeds: feeds, user});
+        res.status(200).json({friends: friends, totalFriends: totalFriends, feeds: feeds, user});
 
 
     } catch (ex) {

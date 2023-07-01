@@ -11,6 +11,7 @@ class Group extends Base {
     }
 
     name = ""
+    slug = ""
     coverPhoto = ""
     description = ""
     privacySetting = {}
@@ -24,6 +25,7 @@ class Group extends Base {
     constructor(data){
         super(Group.collectionName)
         this.name = data.name
+        this.slug = data.slug
         this.coverPhoto = data.coverPhoto
         this.description = data.description
         this.privacySetting = data.privacySetting

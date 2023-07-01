@@ -11,9 +11,6 @@ import formidable from "formidable";
 import pusher from "../pusher/pusher";
 import {imageKitAuthenticationParameters} from "src/services/ImageKitUpload";
 
-const ImageKit = require("imagekit");
-const fs = require('fs');
-
 
 const router = require("express").Router();
 
@@ -41,6 +38,7 @@ router.post("/pusher/auth", (req, res) => {
         const channel = fields.channel_name;
         // This authenticates every user. Don't do this in production!
         const authResponse = pusher.authorizeChannel(socketId, channel);
+        console.log(authResponse)
         res.send(authResponse);
     })
 });

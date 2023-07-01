@@ -124,8 +124,8 @@ class Base {
     static async remove(filter) {
         return (await Base.Db(this.collectionName)).remove(filter)
     }
-    static async countDocuments() {
-        return (await Base.Db(this.collectionName)).countDocuments()
+    static async countDocuments(...params) {
+        return (await Base.Db(this.collectionName)).countDocuments(...params)
     }
 
     static async deleteMany(filter) {

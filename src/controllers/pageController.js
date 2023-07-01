@@ -82,11 +82,74 @@ export async function getMyGroups(req, res, next) {
 
 export async function discoverPages(req, res, next) {
     try {
-        const pages = await Page.find({
-            ownerId: {
-                $nin: [new ObjectId(req.user._id)]
+        const pages = await Page.aggregate([
+            {
+                $match: {
+                    ownerId: {
+                        $nin: [new ObjectId(req.user._id)]
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: "page_like",
+                    let: {pageId: "$_id"},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        {$eq: ["$pageId", "$$pageId"]},
+                                        {$eq: ["$userId", new ObjectId(req.user._id)]}
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "likedPages"
+                }
+            },
+            // Filter pages where the likedPages array is empty (user has not liked the page)
+            {
+                $match: {
+                    likedPages: {$eq: []}
+                }
+            },
+            {
+                $lookup: {
+                    from: "page_follower",
+                    let: {pageId: "$_id"},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        {$eq: ["$pageId", "$$pageId"]},
+                                        {$eq: ["$userId", new ObjectId(req.user._id)]}
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "pageFollower"
+                }
+            },
+            // Filter pages where the likedPages array is empty (user has not liked the page)
+            {
+                $match: {
+                    pageFollower: {$eq: []}
+                }
+            },
+
+            {
+                $project: {
+                    likedPages: 0,
+                    pageFollower: 0
+                }
             }
-        })
+        ])
+
+
         res.status(200).json({pages: pages})
 
     } catch (ex) {
@@ -148,6 +211,7 @@ export async function createPage(req, res, next) {
                 bio,
                 slug: name,
                 coverPhoto: "",
+                category,
                 createdAt: new Date()
             }
 
@@ -478,4 +542,20 @@ export async function togglePageFollow(req, res, next) {
 }
 
 
+const page = {
+    "_id": "649e7e41d11c9729ed1a6376",
+    "ownerId": "649183422a6cba0233eb9d4a",
+    "bio": "",
+    "coverPhoto": "",
+    "createdAt": "2023-06-30T07:03:29.833Z",
+    "name": "Rakib page",
+    "slug": "Rakib page"
+}
 
+
+const pageLikes = {
+    "_id": "649e7e41d11c9729ed1a6376",
+    "userId": "649e7e41d11c9723423423",
+    "pageId": "649e7e41d11c9729ed1a6376",
+    "createdAt": "2023-06-30T07:03:29.833Z"
+}

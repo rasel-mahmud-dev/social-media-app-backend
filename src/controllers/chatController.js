@@ -433,7 +433,6 @@ export async function sendMessage(req, res, next) {
             senderId: new ObjectId(req.user._id)
         })
 
-
         newMessage = await newMessage.save()
 
         // let messages = await getMessageQuery({
@@ -443,10 +442,11 @@ export async function sendMessage(req, res, next) {
         // })
         // broadcast to friend
         // Trigger a 'message' event on the recipient's private channel
+
         pusher.trigger(`private-chat-${roomId}`, 'message', {
             message: newMessage
         }).then(a => {
-            console.log(a)
+            console.log(a.status)
         }).catch(ex => {
             console.log(ex.message)
         })

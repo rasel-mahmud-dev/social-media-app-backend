@@ -10,6 +10,7 @@ import Membership from "src/models/Membership";
 import Invitation from "src/models/Invitation";
 import notificationEvent from "src/services/notification";
 import Feed from "src/models/Feed";
+import slugify from "slugify";
 
 
 function getRoomQuery(match = {}) {
@@ -40,9 +41,54 @@ function getRoomQuery(match = {}) {
 
 export async function getMyGroups(req, res, next) {
     try {
-        let groups = await Group.find({
-            ownerId: new ObjectId(req.user._id),
-        })
+        let groups = await Group.aggregate([
+            {
+                $lookup: {
+                    from: "membership",
+                    let: {groupId: "$_id"},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        {
+                                            $eq: ["$groupId", "$$groupId"],
+                                        },
+                                        {
+                                            $eq: ["$userId", new ObjectId(req.user._id)],//right table (membership) userId
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "members"
+                }
+            },
+            {
+                $match: {
+                    $or: [
+                        { $expr: { $gt: [{ $size: "$members" }, 0] } },
+                        {ownerId: new ObjectId(req.user._id)},
+                    ]
+                }
+            },
+            // {
+            //     $lookup: {
+            //         from: "membership",
+            //         let: {groupId: "$_id"},
+            //         as: "allMembers"
+            //     }
+            // },
+            {
+                $addFields: {
+                    totalMember: {
+                        $size: "$members"
+                    }
+                }
+            },
+
+        ])
         res.status(200).json({groups: groups})
 
     } catch (ex) {
@@ -53,7 +99,31 @@ export async function getMyGroups(req, res, next) {
 
 export async function discoverGroups(req, res, next) {
     try {
-        let groups = await Group.find({})
+        let groups = await Group.aggregate([
+            {
+                $lookup: {
+                    from: "membership",
+                    let: {groupId: "$_id"},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        {
+                                            $eq: ["$groupId", "$$groupId"],
+                                        },
+                                        {
+                                            $ne: ["$userId", new ObjectId(req.user._id)],//right table (membership) userId
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: "members"
+                }
+            },
+        ])
         res.status(200).json({groups: groups})
 
     } catch (ex) {
@@ -94,6 +164,17 @@ export async function getGroupFeeds(req, res, next) {
             },
             {
                 $unwind: {path: "$author"}
+            },
+            {
+                $lookup: {
+                    from: "groups",
+                    localField: "groupId",
+                    foreignField: "_id",
+                    as: "group"
+                }
+            },
+            {
+                $unwind: {path: "$group", preserveNullAndEmptyArrays: false}
             },
             {
                 $lookup: {
@@ -186,7 +267,7 @@ export async function createGroup(req, res, next) {
 
             let schema = yup.object({
                 name: yup.string().required().max(100),
-                description: yup.string().max(800)
+                description: yup.string().max(5000)
             })
 
             await schema.validate({
@@ -194,11 +275,13 @@ export async function createGroup(req, res, next) {
                 description
             })
 
-            let isExist = await Group.findOne({name})
+            let groupSlug = slugify(name, {lower: true})
+            let isExist = await Group.findOne({slug: groupSlug})
             if (isExist) return next("This name is already used in someone group")
 
             let payload = {
                 name,
+                slug: groupSlug,
                 ownerId: new ObjectId(req.user._id),
                 description,
                 isPublic: isPublic === "1",
@@ -270,8 +353,10 @@ export async function createGroup(req, res, next) {
 export async function getGroupDetail(req, res, next) {
     try {
 
+
         const {groupSlug} = req.params
         if (!groupSlug) return next("Please provide groupSlug")
+
 
         let groups = await Group.aggregate([
             {
@@ -282,8 +367,23 @@ export async function getGroupDetail(req, res, next) {
             {
                 $lookup: {
                     from: "membership",
-                    localField: "_id",
-                    foreignField: "groupId",
+                    let: {groupId: "$_id"},
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        {
+                                            $eq: ["$groupId", "$$groupId"],
+                                        },
+                                        {
+                                            $eq: ["$userId", new ObjectId(req.user._id)],//right table (membership) userId
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
                     as: "members"
                 }
             },
@@ -293,34 +393,6 @@ export async function getGroupDetail(req, res, next) {
                     localField: "members.userId",
                     foreignField: "_id",
                     as: "membersTemp"
-                }
-            },
-            {
-                $addFields: {
-                    members: {
-                        $map: {
-                            input: "$members",
-                            as: "member",
-                            in: {
-                                $mergeObjects: [
-                                    "$$member",
-                                    {
-                                        user: {
-                                            $arrayElemAt: [
-                                                {
-                                                    $filter: {
-                                                        input: "$membersTemp",
-                                                        cond: {$eq: ["$$this._id", "$$member.userId"]}
-                                                    }
-                                                },
-                                                0
-                                            ]
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
                 }
             },
             {
@@ -343,16 +415,19 @@ export async function getGroupDetail(req, res, next) {
         let role = "user"
 
         if (groups.length > 0) {
-            if (groups[0].ownerId === req.user._id) {
+            if (groups[0]?.ownerId.toString() === req.user._id) {
+
                 isMember = true
                 role = "admin"
             } else {
-                let member = await Membership.findOne({groupId: new ObjectId(groups[0]._id)})
+                let member = await Membership.findOne({
+                    userId: new ObjectId(req.user._id),
+                    groupId: new ObjectId(groups[0]._id)
+                })
                 if (member) {
                     role = member.role
                     isMember = true
                 }
-
             }
             res.status(200).json({group: groups[0], role, isYouMember: isMember})
         } else {
@@ -480,8 +555,6 @@ export async function acceptInvitation(req, res, next) {
 
 export async function getGroupMembers(req, res, next) {
     try {
-
-
         let schema = yup.object({
             groupId: yup.string().required("Please provide groupId").length(24)
         })
@@ -498,7 +571,6 @@ export async function getGroupMembers(req, res, next) {
         await schema.validate({
             groupId: groupId
         })
-
 
         let group = await Group.findOne({_id: new ObjectId(groupId)})
         if (!group) return next("This group is not exists")
@@ -520,7 +592,7 @@ export async function getGroupMembers(req, res, next) {
             }
 
             if (pageNumber === 1) {
-                count = await Membership.countDocuments() || 0
+                count = await Membership.countDocuments({groupId: new ObjectId(groupId)}) || 1
             }
 
         }

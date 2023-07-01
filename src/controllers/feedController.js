@@ -300,6 +300,191 @@ export const getFeeds = async (req, res, next) => {
 }
 
 
+// get my groups feeds
+export const getMyGroupsFeeds = async (req, res, next) => {
+    try {
+        let {userId, pageNumber = "1"} = req.query
+
+        const limit = 10;
+
+        pageNumber = Number(pageNumber)
+        if (isNaN(pageNumber)) {
+            pageNumber = 1
+        }
+
+        let feeds = await Feed.aggregate([
+            {
+                $match: {
+                    $or: [
+                        {type: "group"}
+                    ]
+                }
+            },
+            // {
+            //     $lookup: {
+            //         from: "friend",
+            //         let: {userId: new ObjectId(req.user._id)}, // feed collection ar localfield
+            //         pipeline: [
+            //             {
+            //                 $match: {
+            //                     $expr: {
+            //                         $and: [
+            //                             {
+            //                                 $or: [
+            //                                     {$eq: ["$senderId", "$$userId"]},
+            //                                     {$eq: ["$receiverId", "$$userId"]}
+            //                                 ],
+            //                             },
+            //                             {$eq: ["$status", "accepted"]}
+            //                         ]
+            //
+            //                     }
+            //                 }
+            //             }
+            //         ],
+            //         as: "friend"
+            //     }
+            // },
+            // {
+            //     $lookup: {
+            //         from: "follow",
+            //         let: {userId: "$userId"}, // feed collection ar localfield
+            //         pipeline: [
+            //             {
+            //                 $match: {
+            //                     $expr: {
+            //                         $or: [
+            //                             {$eq: ["$following", "$$userId"]},
+            //                             {$eq: ["$follower", "$$userId"]}
+            //                         ]
+            //                     }
+            //                 }
+            //             }
+            //         ],
+            //         as: "followedUser"
+            //     }
+            // },
+            {
+                $lookup: {
+                    from: "page_like",
+                    localField: "pageId",
+                    foreignField: "pageId",
+                    as: "likedPages"
+                }
+            },
+            {
+                $lookup: {
+                    from: "groups",
+                    localField: "groupId",
+                    foreignField: "_id",
+                    as: "group"
+                }
+            },
+            {
+                $unwind: {path: "$group", preserveNullAndEmptyArrays: false}
+            },
+            {
+                $lookup: {
+                    from: "media",
+                    localField: "videoId",
+                    foreignField: "_id",
+                    as: "video"
+                }
+            },
+            {
+                $unwind: {path: "$video", preserveNullAndEmptyArrays: true}
+            },
+            // {
+            //     $match: {
+            //         $or: [
+            //             {"userId": userId},
+            //             {"friend.senderId": {$exists: true}},
+            //             {"friend.receiverId": {$exists: true}},
+            //             {"followedUser.follower": {$exists: true}},
+            //             {"followedUser.following": {$exists: true}},
+            //         ]
+            //     }
+            // },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "userId",
+                    foreignField: "_id",
+                    as: "author"
+                }
+            },
+            {
+                $unwind: {path: "$author"}
+            },
+            {
+                $lookup: {
+                    from: "like",
+                    localField: "_id",
+                    foreignField: "feedId",
+                    as: "likes"
+                }
+            },
+            {
+                $lookup: {
+                    from: "comment",
+                    localField: "_id",
+                    foreignField: "feedId",
+                    as: "comments"
+                }
+            },
+            {
+                $addFields: {
+                    totalComment: {
+                        $size: "$comments"
+                    }
+                },
+            },
+            {
+                $addFields: {
+                    totalLikes: {
+                        $size: "$likes"
+                    }
+                },
+            },
+            {
+                $sort: {
+                    createdAt: -1
+                }
+            },
+            {
+                $skip: limit * (pageNumber - 1)
+            },
+            {
+                $limit: limit
+            },
+            // {
+            //     $group: {
+            //         _id: null,
+            //         comment: { $first: "$comments" } // Get the first comment
+            //     }
+            // },
+            {
+                $project: {
+                    author: {
+                        password: 0,
+                        role: 0,
+                        createdAt: 0,
+                        updatedAt: 0,
+                        email: 0,
+                    },
+                    likes: 0,
+                    comments: 0
+                    // comment: { $slice: ["$comments", 1] }
+                }
+            }
+        ])
+
+        res.status(200).json(feeds);
+    } catch (ex) {
+        next(ex);
+    }
+}
+
 
 // get all feeds
 export const getVideoFeeds = async (req, res, next) => {
@@ -752,20 +937,3 @@ export const toggleLike = async (req, res, next) => {
     }
 };
 
-
-const feeds = [
-    {_id: new ObjectId(), title: "new feed", pageId: 123}
-]
-
-const pages = [
-    {_id: 123, title: "hero page"}
-]
-
-const users = [
-    {_id: 342, title: "test user"}
-]
-
-
-const pageLikes = [
-    {_id: 1234, pageId: 123}
-]
