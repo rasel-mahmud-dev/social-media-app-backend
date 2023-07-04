@@ -21,6 +21,8 @@ router.post("/remove-friend", auth, removeFriend);
 router.post("/accept-request", auth, acceptFriendRequest);
 router.post("/reject-request", auth, rejectFriendRequest);
 
+router.post("/reject-friend-request", auth, rejectFriendRequest);
+
 
 
 

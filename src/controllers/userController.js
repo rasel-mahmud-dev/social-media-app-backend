@@ -285,17 +285,13 @@ export const acceptFriendRequest = async (req, res, next) => {
 
 export const rejectFriendRequest = async (req, res, next) => {
     try {
-        const {friendId} = req.body
+        const {friendCollectionId} = req.body
 
-        let result = await Friend.deleteOne({
-            receiverId: new ObjectId(req.user._id),
-            senderId: new ObjectId(friendId)
-        })
-        if (result.modifiedCount) {
-            res.status(201).json({message: "Request Accepted"})
-        } else {
-            next("Request not accepted");
-        }
+        let result = await Friend.deleteOne(
+            {_id: new ObjectId(friendCollectionId)})
+
+        res.status(201).json({message: "Request had been Rejected"})
+
     } catch (error) {
         next(error);
     }
