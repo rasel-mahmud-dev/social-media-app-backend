@@ -263,7 +263,7 @@ export async function createGroup(req, res, next) {
     const form = formidable({multiple: false})
     form.parse(req, async function (err, fields, files) {
         try {
-            const {name, description, isPublic = "1", _id = "", members = "[]"} = fields
+            const {name, description, isPublic = "1", _id = "", members = "[]", accent = ""} = fields
 
             let schema = yup.object({
                 name: yup.string().required().max(100),
@@ -287,6 +287,12 @@ export async function createGroup(req, res, next) {
                 isPublic: isPublic === "1",
                 coverPhoto: "",
                 createdAt: new Date()
+            }
+
+            if(accent){
+                payload.meta = {
+                    accentColor: accent
+                }
             }
 
             if (files?.coverPhoto) {

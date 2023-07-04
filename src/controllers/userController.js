@@ -224,13 +224,18 @@ export const removeFriend = async (req, res, next) => {
             ]
         })
 
-        notificationEvent.emit("notification", {
-            message: ``,
-            recipientId: friendId,
-            notificationType: "unfriend",
-            groupId: "000000000000000000000000",
-            senderId: req.user._id,
-        })
+        try {
+            notificationEvent.emit("notification", {
+                message: ``,
+                recipientId: friendId,
+                notificationType: "unfriend",
+                groupId: "000000000000000000000000",
+                senderId: req.user._id,
+            })
+
+        } catch (ex) {
+
+        }
 
         res.status(201).json({
             message: "Friend has been removed"
@@ -272,6 +277,7 @@ export const acceptFriendRequest = async (req, res, next) => {
             groupId: "000000000000000000000000",
             senderId: req.user._id,
         })
+        console.log(friend)
 
         return res.status(201).json({message: "Request Accepted", friend: friend[0]})
 

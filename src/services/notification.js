@@ -20,35 +20,39 @@ notificationEvent.on("notification", async function (data) {
         senderId,
     } = data
 
-    let result = await Notification.insertOne({
-        recipientId: new ObjectId(recipientId),
-        message,
-        notificationType,
-        timestamp,
-        isRead,
-        link,
-        metadata,
-        groupId: new ObjectId(groupId),
-        senderId: new ObjectId(senderId),
-    })
+    try{
+        let result = await Notification.insertOne({
+            recipientId: new ObjectId(recipientId),
+            message,
+            notificationType,
+            timestamp,
+            isRead,
+            link,
+            metadata,
+            groupId: new ObjectId(groupId),
+            senderId: new ObjectId(senderId),
+        })
 
-    let notification = await Notification.aggregate([
-        {
-            $match: {
-                recipientId: new ObjectId(recipientId),
-                groupId: new ObjectId(groupId),
-                senderId: new ObjectId(senderId),
-            }
-        },
-    ])
+        let notification = await Notification.aggregate([
+            {
+                $match: {
+                    recipientId: new ObjectId(recipientId),
+                    groupId: new ObjectId(groupId),
+                    senderId: new ObjectId(senderId),
+                }
+            },
+        ])
 
-    pusher.trigger("public-channel", recipientId, {
-        notification: notification
-    }).then(() => {
-        console.log("noti send")
-    }).catch(ex => {
+        pusher.trigger("public-channel", recipientId, {
+            notification: notification
+        }).then(() => {
+            console.log("noti send")
+        }).catch(ex => {
+            console.log(ex?.message)
+        })
+    } catch (ex){
         console.log(ex.message)
-    })
+    }
 
 
 })
