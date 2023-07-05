@@ -53,21 +53,17 @@ class Base {
                 await Base.getClient()
 
 
-                COLLECTIONS.forEach((colItem) => {
-                    let collection = Base.databaseConnection.collection(colItem.collectionName)
-                    let indexes = colItem.indexes;
-                    if (!indexes) return;
+                COLLECTIONS.forEach( (colItem) => {
+                    (async function(colItem){
+                        let collection = Base.databaseConnection.collection(colItem.collectionName)
+                        let indexes = colItem.indexes;
+                        if (!indexes) return;
 
-                    for (let indexesKey in indexes) {
-                        collection.createIndex([indexesKey], indexes[indexesKey], function (error, result) {
-                            console.log(error, result)
-                            // if (a) {
-                            //     console.log(a.message)
-                            // } else {
-                            //     console.log(`${colItem.name} collection indexed completed`)
-                            // }
-                        })
-                    }
+                        for (let indexesKey in indexes) {
+                            let a = await collection.createIndex([indexesKey], indexes[indexesKey])
+                            console.log(a)
+                        }
+                    }(colItem))
                 })
             } catch (ex) {
                 // console.log(ex.message)

@@ -755,6 +755,7 @@ export const createFeed = (req, res, next) => {
                 userTags,
                 groupSlug = "",
                 pageName = "",
+                videoUrl
             } = fields;
 
 
@@ -772,34 +773,47 @@ export const createFeed = (req, res, next) => {
                 if (!page) return next("This Page is not found")
             }
 
-
-            if (files && files.image && Array.isArray(files.image)) {
-                incomingFiles = files.image
-
-            } else if (typeof files.image === "object") {
-                incomingFiles = [files.image]
-            }
-
-            let fileUploadPromises = []
-            let uploadFail = incomingFiles.length !== 0
-
-            if (incomingFiles && Array.isArray(incomingFiles)) {
-                incomingFiles.forEach(image => {
-                    let name = image.newFilename + "-" + image.originalFilename
-                    fileUploadPromises.push(imageKitUpload(image.filepath, name, "social-app"))
+            let newVideoMedia = null
+            if (videoUrl) {
+                newVideoMedia = await Media.insertOne({
+                    "meta": {"duration": 1842343},
+                    "feedId": new ObjectId(),
+                    "userId": new ObjectId(req.user._id),
+                    "type": "video",
+                    "url": videoUrl
                 })
 
-                let result = await Promise.allSettled(fileUploadPromises)
+            } else {
 
-                result.forEach(item => {
-                    if (item.status === "fulfilled" && item.value) {
-                        uploadFail = false
-                        images.push(item.value.url)
-                    }
-                })
+                if (files && files.image && Array.isArray(files.image)) {
+                    incomingFiles = files.image
+
+                } else if (typeof files.image === "object") {
+                    incomingFiles = [files.image]
+                }
+
+                let fileUploadPromises = []
+                let uploadFail = incomingFiles.length !== 0
+
+                if (incomingFiles && Array.isArray(incomingFiles)) {
+                    incomingFiles.forEach(image => {
+                        let name = image.newFilename + "-" + image.originalFilename
+                        fileUploadPromises.push(imageKitUpload(image.filepath, name, "social-app"))
+                    })
+
+                    let result = await Promise.allSettled(fileUploadPromises)
+
+                    result.forEach(item => {
+                        if (item.status === "fulfilled" && item.value) {
+                            uploadFail = false
+                            images.push(item.value.url)
+                        }
+                    })
+                }
+
+                if (uploadFail) return next("Post image upload fail.")
+
             }
-
-            if (uploadFail) return next("Post image upload fail.")
 
             let feed = new Feed({
                 content,
@@ -808,16 +822,13 @@ export const createFeed = (req, res, next) => {
                 type: group ? "group" : page ? "page" : "user",
                 userId: new ObjectId(req.user._id),
                 images,
+                videoId: newVideoMedia ? new ObjectId(newVideoMedia._id) : new ObjectId("000000000000000000000000"),
                 userTags
             })
 
             feed = await feed.save()
             if (feed) {
                 let newFeedId = feed._id
-                feed = await getFeedQuery({
-                    _id: new ObjectId(feed._id)
-                })
-
                 if (images.length > 0) {
                     let allMedia = images.map(img => (
                         {
@@ -834,6 +845,22 @@ export const createFeed = (req, res, next) => {
 
                 }
 
+                if (newVideoMedia && newVideoMedia._id) {
+                    Media.updateOne({
+                        _id: new ObjectId(newVideoMedia._id)
+                    }, {
+                        $set: {
+                            feedId: new ObjectId(newFeedId)
+                        }
+                    }).catch((a) => {
+                    })
+                }
+
+                // now get updated feed
+
+                feed = await getFeedQuery({
+                    _id: new ObjectId(feed._id)
+                })
 
                 pusher.trigger("public-channel", "new-feed", {
                     feed: feed[0]
